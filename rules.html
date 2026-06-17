@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斗兽棋 - 游戏规则说明</title>
+    <link rel="stylesheet" href="css/rules.css">
+</head>
+<body>
+    <div class="rules-container">
+        <!-- 标题区 -->
+        <div class="rules-header">
+            <h1>斗兽棋规则</h1>
+            <p>丛林争霸 · 智慧对决</p>
+            <a href="index.html" class="back-button">← 返回游戏</a>
+        </div>
+
+        <!-- 游戏简介 -->
+        <div class="section">
+            <h2>📖 游戏简介</h2>
+            <div class="section-content">
+                <p>斗兽棋（又名"动物棋"）是一款经典的中国棋类游戏，棋盘为 9×7 格，由双方各持有 8 种不同的动物棋子进行对战。</p>
+                <p>游戏的核心在于<span class="highlight-gold">棋子等级</span>：等级高的棋子可以吃掉等级低的棋子，但有一个特殊的例外——<span class="highlight-red">鼠可以吃象</span>，形成了有趣的"大怕小"策略。</p>
+                <p>棋盘中间设有<span class="highlight-blue">河流</span>，两旁分布<span class="highlight-gold">陷阱</span>，双方各有一个<span class="highlight-red">兽穴</span>，这些特殊地形为游戏增添了丰富的战术变化。</p>
+            </div>
+        </div>
+
+        <!-- 棋子等级 -->
+        <div class="section">
+            <h2>🦁 棋子等级说明</h2>
+            <div class="section-content">
+                <p style="margin-bottom: 20px;">等级高的棋子可以吃掉等级低的或同级的棋子。</p>
+                <table class="piece-table">
+                    <thead>
+                        <tr>
+                            <th>等级</th>
+                            <th>棋子</th>
+                            <th>名称</th>
+                            <th>特殊能力</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="level-badge">8</span></td>
+                            <td><img src="assets/images/red/elephant.svg" alt="象"></td>
+                            <td><strong>象</strong></td>
+                            <td>等级最高，但怕鼠，不能吃鼠</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">7</span></td>
+                            <td><img src="assets/images/red/lion.svg" alt="狮"></td>
+                            <td><strong>狮</strong></td>
+                            <td>可横向或纵向跳过河流</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">6</span></td>
+                            <td><img src="assets/images/red/tiger.svg" alt="虎"></td>
+                            <td><strong>虎</strong></td>
+                            <td>可横向或纵向跳过河流</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">5</span></td>
+                            <td><img src="assets/images/red/leopard.svg" alt="豹"></td>
+                            <td><strong>豹</strong></td>
+                            <td>普通移动，无特殊能力</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">4</span></td>
+                            <td><img src="assets/images/red/wolf.svg" alt="狼"></td>
+                            <td><strong>狼</strong></td>
+                            <td>普通移动，无特殊能力</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">3</span></td>
+                            <td><img src="assets/images/red/dog.svg" alt="狗"></td>
+                            <td><strong>狗</strong></td>
+                            <td>普通移动，无特殊能力</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">2</span></td>
+                            <td><img src="assets/images/red/cat.svg" alt="猫"></td>
+                            <td><strong>猫</strong></td>
+                            <td>普通移动，无特殊能力</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-badge">1</span></td>
+                            <td><img src="assets/images/red/rat.svg" alt="鼠"></td>
+                            <td><strong>鼠</strong></td>
+                            <td>等级最低，可吃象，可进入河流</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 特殊地形 -->
+        <div class="section">
+            <h2>🗺️ 特殊地形</h2>
+            <div class="terrain-cards">
+                <div class="terrain-card">
+                    <div class="terrain-icon-box terrain-den-box">穴</div>
+                    <h3>兽穴</h3>
+                    <p>双方各有一个兽穴，位于己方阵营中央。<strong>棋子不能进入己方兽穴</strong>，一旦成功进入<span class="highlight-red">对方兽穴</span>即可获胜！</p>
+                </div>
+                <div class="terrain-card">
+                    <div class="terrain-icon-box terrain-trap-box">陷</div>
+                    <h3>陷阱</h3>
+                    <p>位于兽穴周围，每个兽穴有 3 个陷阱。棋子进入<strong>对方的陷阱</strong>后等级变为 0，任人鱼肉，任何敌方棋子都可以吃掉它。</p>
+                </div>
+                <div class="terrain-card">
+                    <div class="terrain-icon-box terrain-river-box">~</div>
+                    <h3>河流</h3>
+                    <p>棋盘中央有两条河流，只有鼠可以进入。狮和虎可以跳过河流（但如果河中被鼠挡住则不能跳），水中的鼠不能吃陆地棋子。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 特殊规则 -->
+        <div class="section">
+            <h2>⚡ 特殊规则</h2>
+            <div class="section-content">
+                <div class="special-rule">
+                    <h4>🐭 鼠吃象规则</h4>
+                    <p>虽然鼠的等级只有 1，象的等级是 8（最高），但鼠可以吃掉象，而象不能吃鼠。这是斗兽棋最经典的"以小克大"规则，代表鼠可以钻进象的耳朵里。</p>
+                </div>
+                <div class="special-rule">
+                    <h4>🌊 河流规则</h4>
+                    <p>只有鼠可以进入河流。鼠在水中时，<strong>不能吃陆地上的棋子</strong>，<strong>陆地上的棋子也不能吃水中的鼠</strong>（除了同为水中的鼠）。水中的鼠可以阻挡狮和虎跳河。</p>
+                </div>
+                <div class="special-rule">
+                    <h4>🦁🐯 跳河规则</h4>
+                    <p>狮和虎可以<strong>横向或纵向</strong>跳过河流，落在对岸的陆地上。如果落点是空位则直接移动；如果落点有敌方棋子且等级低于狮/虎，则可以吃掉它。</p>
+                    <p style="margin-top: 8px;"><strong>注意</strong>：如果跳跃路径上的河流格子中有任何棋子（哪怕是己方的鼠），则不能跳过。</p>
+                </div>
+                <div class="special-rule">
+                    <h4>🪤 陷阱规则</h4>
+                    <p>陷阱是相对于"主人"而言的：红方的陷阱困住红方棋子，蓝方的陷阱困住蓝方棋子。棋子掉入<strong>己方陷阱</strong>后，敌方任何棋子都可以吃掉它（无视等级）。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 基本操作 -->
+        <div class="section">
+            <h2>🎯 基本规则</h2>
+            <div class="section-content">
+                <ul class="rules-list">
+                    <li><strong>移动方式</strong>：棋子每次只能向上下左右移动一格，不能斜向移动。</li>
+                    <li><strong>吃子规则</strong>：己方棋子可以移动到有敌方棋子的格子上，将其吃掉（前提是符合等级规则）。</li>
+                    <li><strong>不能自杀</strong>：棋子不能移动到己方兽穴。</li>
+                    <li><strong>不能过河</strong>：除鼠以外的棋子不能进入河流格子。</li>
+                    <li><strong>回合制</strong>：红方先行，双方轮流移动一枚棋子。</li>
+                    <li><strong>吃同级</strong>：等级相同的棋子可以互吃，先手移动的一方吃掉对方。</li>
+                    <li><strong>不能不动</strong>：必须移动一枚棋子，不允许"过"。</li>
+                    <li><strong>棋子朝向</strong>：红方在上方（棋盘顶部），蓝方在下方（棋盘底部），两方对称排列。</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 胜利条件 -->
+        <div class="section">
+            <h2>🏆 胜利条件</h2>
+            <div class="section-content">
+                <ul class="rules-list">
+                    <li><strong>占领兽穴</strong>：己方任何棋子成功进入<strong>对方的兽穴</strong>，立即获胜。</li>
+                    <li><strong>全歼敌军</strong>：吃掉对方<strong>所有 8 枚棋子</strong>，对方无子可动时获胜。</li>
+                    <li><strong>困毙</strong>：对方所有棋子都被包围，没有任何合法移动时，我方获胜（此情况较罕见）。</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 操作提示 -->
+        <div class="section">
+            <h2>💡 游戏操作</h2>
+            <div class="guide-box">
+                <p><strong>① 选择棋子</strong>：点击己方的任意棋子，该棋子将被选中并高亮显示。</p>
+                <p><strong>② 查看可行位置</strong>：选中棋子后，绿色圆圈表示可以移动的空位，红色圆圈表示可以吃掉的敌方棋子。</p>
+                <p><strong>③ 执行移动</strong>：点击绿色或红色标记的格子，棋子将移动到该位置。</p>
+                <p><strong>④ 重新选择</strong>：如果想换一个棋子，点击其他己方棋子即可切换选择。</p>
+                <p><strong>⑤ 回合交替</strong>：每次移动后，自动切换到对方回合。顶部会显示当前是哪方行动。</p>
+                <p><strong>⑥ 重新开始</strong>：点击"重新开始"按钮可随时重置棋盘。</p>
+            </div>
+        </div>
+
+        <!-- 策略建议 -->
+        <div class="section">
+            <h2>🧠 策略建议</h2>
+            <div class="section-content">
+                <ul class="rules-list">
+                    <li><strong>保护象</strong>：象是最强的棋子，但怕鼠。注意避免让对方的鼠接近你的象。</li>
+                    <li><strong>善用鼠</strong>：鼠虽然弱小，但可以入水、吃象，还能阻挡狮虎跳河，是关键棋子。</li>
+                    <li><strong>陷阱战术</strong>：尝试将对方强势棋子引诱到你的陷阱附近，然后从侧面攻击吃掉它。</li>
+                    <li><strong>狮虎出击</strong>：利用狮虎的跳河能力快速切入对方阵地，是重要的攻击手段。</li>
+                    <li><strong>守卫兽穴</strong>：兽穴是胜利目标也是弱点。确保兽穴周围有足够的防守力量。</li>
+                    <li><strong>中等级棋子</strong>：豹、狼、狗、猫虽然没有特殊能力，但数量占据棋子一半，是战斗主力。</li>
+                    <li><strong>保护鼠</strong>：鼠在对抗对方象时至关重要，不要轻易让鼠被吃掉。</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 底部返回 -->
+        <div class="rules-footer">
+            <a href="index.html" class="back-button">🎮 开始游戏</a>
+        </div>
+    </div>
+</body>
+</html>

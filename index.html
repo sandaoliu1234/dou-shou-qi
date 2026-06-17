@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斗兽棋 - 对战</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- 顶部细栏 -->
+        <header class="topbar">
+            <div>
+                <span class="topbar-title">斗兽棋</span>
+                <span class="topbar-subtitle">丛林争霸 · 智慧对决</span>
+            </div>
+            <div class="topbar-actions">
+                <a href="rules.html">📖 查看游戏规则</a>
+            </div>
+        </header>
+
+        <!-- 玩家条 -->
+        <div class="playerbar">
+            <div class="player-card player-red active" id="playerRed">
+                <div class="player-avatar">🦁</div>
+                <div class="player-info">
+                    <span class="player-name">红方</span>
+                    <span class="player-status" id="redStatus">行动中</span>
+                </div>
+                <div class="pieces-count">剩余 <span id="redCount">8</span></div>
+            </div>
+
+            <div class="game-status">
+                <div class="turn-indicator">
+                    <span>当前回合</span>
+                    <span class="turn-player" id="turnPlayer">红方</span>
+                </div>
+                <button class="btn-restart" id="btnRestart">重新开始</button>
+            </div>
+
+            <div class="player-card player-blue" id="playerBlue">
+                <div class="player-avatar">🐯</div>
+                <div class="player-info">
+                    <span class="player-name">蓝方</span>
+                    <span class="player-status" id="blueStatus">等待中</span>
+                </div>
+                <div class="pieces-count">剩余 <span id="blueCount">8</span></div>
+            </div>
+        </div>
+
+        <!-- 中央棋盘区 -->
+        <main class="board-area">
+            <div class="action-hint" id="actionHint">游戏开始！请红方选择棋子移动</div>
+            <div class="board-frame" id="board"></div>
+        </main>
+
+        <!-- 底部抽屉栏 -->
+        <nav class="drawer-bar">
+            <button class="drawer-tab" data-tab="rules">规则说明</button>
+            <button class="drawer-tab" data-tab="log">操作日志</button>
+            <button class="drawer-tab" data-tab="settings">游戏设置</button>
+            <button class="drawer-toggle" id="drawerToggle">展开 ↓</button>
+        </nav>
+    </div>
+
+    <!-- 抽屉面板（默认折叠） -->
+    <aside class="drawer" id="drawer">
+        <div class="drawer-body" data-panel="rules">
+            <h3>棋子等级</h3>
+            <div class="pieces-list">
+                <div class="piece-item"><img src="assets/images/red/elephant.svg" alt="象"><span class="name">象 · 等级8</span><span class="note">最强，但怕鼠</span></div>
+                <div class="piece-item"><img src="assets/images/red/lion.svg" alt="狮"><span class="name">狮 · 等级7</span><span class="note">可横向跳河</span></div>
+                <div class="piece-item"><img src="assets/images/red/tiger.svg" alt="虎"><span class="name">虎 · 等级6</span><span class="note">可纵向跳河</span></div>
+                <div class="piece-item"><img src="assets/images/red/leopard.svg" alt="豹"><span class="name">豹 · 等级5</span></div>
+                <div class="piece-item"><img src="assets/images/red/wolf.svg" alt="狼"><span class="name">狼 · 等级4</span></div>
+                <div class="piece-item"><img src="assets/images/red/dog.svg" alt="狗"><span class="name">狗 · 等级3</span></div>
+                <div class="piece-item"><img src="assets/images/red/cat.svg" alt="猫"><span class="name">猫 · 等级2</span></div>
+                <div class="piece-item"><img src="assets/images/red/rat.svg" alt="鼠"><span class="name">鼠 · 等级1</span><span class="note">可吃象，可入水</span></div>
+            </div>
+            <h3>特殊地形</h3>
+            <div class="terrain-list">
+                <div class="terrain-item"><span class="terrain-icon den"></span><span>兽穴：对方进入即败</span></div>
+                <div class="terrain-item"><span class="terrain-icon trap"></span><span>陷阱：对方进入后任人鱼肉</span></div>
+                <div class="terrain-item"><span class="terrain-icon river"></span><span>河流：只有鼠能进入</span></div>
+            </div>
+        </div>
+        <div class="drawer-body" data-panel="log" hidden>
+            <div class="log-list" id="logList"><div class="log-entry">暂无记录</div></div>
+        </div>
+        <div class="drawer-body" data-panel="settings" hidden>
+            <h3>游戏设置</h3>
+            <p style="color:var(--color-text-soft);font-size:13px">当前版本无额外设置项。点击「重新开始」可重置棋局。</p>
+        </div>
+    </aside>
+
+    <!-- 胜利弹窗 -->
+    <div class="modal" id="winModal">
+        <div class="modal-content">
+            <h2 id="winTitle">🎉 游戏结束</h2>
+            <p id="winMessage">红方获胜！</p>
+            <button class="btn-restart" id="btnModalRestart">再来一局</button>
+        </div>
+    </div>
+
+    <script src="js/game.js"></script>
+</body>
+</html>
