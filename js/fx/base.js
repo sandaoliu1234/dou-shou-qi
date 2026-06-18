@@ -375,7 +375,7 @@ function playCaptureSceneAt(targetCellEl, opts) {
     duration: 0.25, ease: 'back.out(2)'
   }, 0.95);
 
-  // 0.95s → 1.05s：攻方快速缩小到 0.3（腾出中心给元素释放）
+  // 1.20s → 1.35s：反弹结束后，攻方快速缩小到 0.3（腾出中心给元素释放）
   tl.to(attacker, {
     scale: 0.3,
     opacity: 0.4,
