@@ -184,101 +184,135 @@
   will-change: transform, opacity;
 }
 
-/* ---- 动物元素 ---- */
+/* ---- 动物元素 (z-index 10002, 全部位于 fx-piece 10000 之上) ---- */
 /* 象牙 */
 .fx-tusk {
-  width: 4px; height: 28px;
-  background: #fff;
-  border-radius: 2px 2px 50% 50%;
-  box-shadow: 0 0 4px rgba(255,255,255,0.6);
+  width: 18px; height: 100px;
+  background: linear-gradient(to bottom, #fff 0%, #ffe9b8 60%, #d4a05a 100%);
+  border-radius: 8px 8px 50% 50%;
+  box-shadow:
+    0 0 28px 6px rgba(255, 255, 255, 0.95),
+    0 0 56px 14px rgba(255, 200, 100, 0.7);
+  z-index: 10002;
 }
 /* 鬃毛（火焰） */
 .fx-mane {
-  width: 14px; height: 18px;
-  background: radial-gradient(circle, #fff5b8 0%, var(--fx-lion) 50%, #c0392b 100%);
+  width: 44px; height: 52px;
+  background: radial-gradient(circle at 50% 80%, #fff5b8 0%, var(--fx-lion) 50%, #c0392b 100%);
   border-radius: 50% 50% 30% 30%;
-  filter: blur(0.3px);
+  filter: blur(0.5px);
+  box-shadow:
+    0 0 28px 6px rgba(255, 200, 80, 0.95),
+    0 0 56px 14px rgba(232, 165, 53, 0.7);
+  z-index: 10002;
 }
 /* 王字 */
 .fx-wang {
-  width: 22px; height: 22px;
-  background: var(--fx-tiger);
+  width: 72px; height: 72px;
+  background: linear-gradient(135deg, var(--fx-tiger) 0%, #4a5a9e 100%);
   color: #fff;
   font-family: var(--font-serif);
   font-weight: 900;
-  font-size: 18px;
-  line-height: 22px;
+  font-size: 56px;
+  line-height: 72px;
   text-align: center;
-  border-radius: 2px;
-  text-shadow: 0 0 4px rgba(0,0,0,0.5);
+  border-radius: 10px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8), 0 0 16px rgba(255,255,255,0.5);
+  box-shadow:
+    0 0 32px 6px rgba(91, 109, 184, 0.95),
+    0 0 64px 16px rgba(91, 109, 184, 0.6);
+  z-index: 10002;
 }
 /* 豹纹 */
 .fx-leo-stripe {
-  width: 18px; height: 4px;
+  width: 56px; height: 14px;
   background: var(--fx-leopard);
-  border-radius: 2px;
-  box-shadow: 0 4px 0 #2d2a18, 0 -4px 0 #2d2a18;
+  border-radius: 7px;
+  box-shadow:
+    0 14px 0 #2d2a18, 0 -14px 0 #2d2a18,
+    0 0 24px 4px rgba(212, 192, 74, 0.95);
+  z-index: 10002;
 }
 /* 月牙 */
 .fx-moon {
-  width: 20px; height: 20px;
-  border: 3px solid var(--fx-wolf);
+  width: 64px; height: 64px;
+  border: 8px solid var(--fx-wolf);
   border-radius: 50%;
   border-right-color: transparent;
   border-bottom-color: transparent;
   transform: rotate(-45deg);
+  box-shadow:
+    0 0 28px 6px rgba(122, 143, 176, 0.95),
+    0 0 56px 14px rgba(122, 143, 176, 0.6);
+  z-index: 10002;
 }
 /* 獠牙 */
 .fx-fang {
-  width: 4px; height: 10px;
-  background: #fff;
-  border-radius: 2px 2px 50% 50%;
+  width: 10px; height: 26px;
+  background: linear-gradient(to bottom, #fff 0%, #e8e8e8 100%);
+  border-radius: 3px 3px 50% 50%;
+  box-shadow:
+    0 0 14px 3px rgba(255, 255, 255, 0.95),
+    0 0 28px 6px rgba(255, 255, 255, 0.5);
+  z-index: 10002;
 }
 /* 爪印 */
 .fx-paw {
-  width: 12px; height: 12px;
+  width: 30px; height: 30px;
   background: currentColor;
   border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
   position: relative;
+  box-shadow: 0 0 16px 3px currentColor;
+  z-index: 10002;
 }
 .fx-paw::before, .fx-paw::after {
   content: ''; position: absolute;
-  width: 4px; height: 4px;
+  width: 11px; height: 11px;
   background: currentColor;
   border-radius: 50%;
-  top: -4px;
+  top: -9px;
+  box-shadow: 0 0 8px 1.5px currentColor;
 }
-.fx-paw::before { left: 0; }
-.fx-paw::after { right: 0; }
+.fx-paw::before { left: -1px; }
+.fx-paw::after { right: -1px; }
 /* 骨头 */
 .fx-bone {
-  width: 18px; height: 6px;
+  width: 56px; height: 18px;
   background: #fff;
-  border-radius: 3px;
+  border-radius: 9px;
   position: relative;
+  box-shadow:
+    0 0 22px 4px rgba(255, 255, 255, 0.95),
+    0 0 44px 8px rgba(255, 255, 255, 0.5);
+  z-index: 10002;
 }
 .fx-bone::before, .fx-bone::after {
   content: ''; position: absolute;
-  width: 8px; height: 8px;
+  width: 22px; height: 22px;
   background: #fff;
   border-radius: 50%;
-  top: -1px;
+  top: -2px;
+  box-shadow: 0 0 12px 2px rgba(255, 255, 255, 0.7);
 }
-.fx-bone::before { left: -2px; }
-.fx-bone::after { right: -2px; }
+.fx-bone::before { left: -7px; }
+.fx-bone::after { right: -7px; }
 /* 胡须 */
 .fx-whisker {
-  width: 30px; height: 1.5px;
-  background: var(--fx-cat);
-  border-radius: 1px;
+  width: 80px; height: 4px;
+  background: linear-gradient(to right, transparent 0%, var(--fx-cat) 50%, transparent 100%);
+  border-radius: 2px;
   transform-origin: left center;
+  box-shadow: 0 0 12px 2px rgba(232, 168, 184, 0.9);
+  z-index: 10002;
 }
 /* 尾巴 */
 .fx-tail {
-  width: 40px; height: 3px;
-  background: var(--fx-rat);
-  border-radius: 2px;
+  width: 90px; height: 8px;
+  background: linear-gradient(to right, var(--fx-rat) 0%, #5a5550 100%);
+  border-radius: 4px;
   transform-origin: left center;
+  box-shadow: 0 0 14px 3px rgba(154, 149, 144, 0.85);
+  z-index: 10002;
 }
 
 /* ---- 兽穴大字 ---- */

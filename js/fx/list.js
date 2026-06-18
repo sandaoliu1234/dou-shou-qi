@@ -15,32 +15,46 @@ const FxList = (function () {
     return `fx-piece fx-piece-${PIECE_SIZE[animal] >= 1.05 ? 'large' : PIECE_SIZE[animal] <= 0.85 ? 'small' : ''}`.trim();
   }
 
+  function getCenterCoordinates(layer) {
+    return {
+      cx: parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2,
+      cy: parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2
+    };
+  }
+
   // ============== 元素释放函数 ==============
 
-  /** 释放象牙突刺 + 棕尘 */
+  /** 释放象牙突刺 + 棕尘（扩散半径 130px，寿命 1.2s） */
   function releaseTusks(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
-    [1, -1].forEach(side => {
+    const { cx, cy } = getCenterCoordinates(layer);
+    // 4 根象牙：上下左右 4 个方向，扩散半径 130px
+    [{ ang: -25, off: 0 }, { ang: 25, off: 0 }, { ang: -25, off: 90 }, { ang: 25, off: 90 }].forEach((cfg) => {
       const t = document.createElement('div');
       t.className = 'fx-tusk';
-      t.style.height = '40px';
       t.style.left = `${cx}px`;
       t.style.top = `${cy}px`;
-      t.style.transform = `translate(-50%, -50%) rotate(${side * 25}deg)`;
+      t.style.transform = `translate(-50%, -50%) rotate(${cfg.ang}deg)`;
       layer.appendChild(t);
-      gsap.fromTo(t, { scale: 0 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' });
-      gsap.to(t, { opacity: 0, duration: 0.3, delay: 0.4, onComplete: () => t.remove() });
+      gsap.fromTo(t, { scale: 0 }, { scale: 1, duration: 0.35, ease: 'back.out(2)' });
+      // 弹出 + 平移到外围 130px + 旋转强化
+      const angle = cfg.off * Math.PI / 180;
+      gsap.to(t, {
+        x: Math.cos(angle) * 130,
+        y: Math.sin(angle) * 130,
+        rotation: cfg.ang + 90,
+        opacity: 0,
+        duration: 0.6,
+        delay: 0.2,
+        ease: 'power2.out',
+        onComplete: () => t.remove()
+      });
     });
-    F.radialBurst(layer, theme, 8, 80, 0.5);
+    F.radialBurst(layer, theme, 16, 140, 0.7);
   }
 
   /** 移动·灰尘：5 颗彩色尘粒从底部散开 */
   function releaseMoveDust(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
     for (let i = 0; i < 5; i++) {
       const d = document.createElement('div');
       d.className = 'fx-move-dust';
@@ -64,162 +78,200 @@ const FxList = (function () {
     }
   }
 
-  /** 释放鬃毛火焰 */
+  /** 释放鬃毛火焰（扩散半径 130px，寿命 1.4s） */
   function releaseMane(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
-    for (let i = 0; i < 12; i++) {
+    const { cx, cy } = getCenterCoordinates(layer);
+    for (let i = 0; i < 16; i++) {
       const m = document.createElement('div');
       m.className = 'fx-mane';
       m.style.left = `${cx}px`;
       m.style.top = `${cy}px`;
       m.style.transform = 'translate(-50%, -50%)';
       layer.appendChild(m);
-      const angle = (i / 12) * 360;
+      const angle = (i / 16) * 360;
       gsap.fromTo(m, { x: 0, y: 0, scale: 0, rotate: angle },
-        { x: Math.cos(angle * Math.PI / 180) * 80, y: Math.sin(angle * Math.PI / 180) * 80, scale: 1.2, rotate: angle, duration: 0.5, ease: 'power2.out' });
-      gsap.to(m, { opacity: 0, duration: 0.3, delay: 0.5, onComplete: () => m.remove() });
+        { x: Math.cos(angle * Math.PI / 180) * 130, y: Math.sin(angle * Math.PI / 180) * 130, scale: 1.4, rotate: angle, duration: 0.7, ease: 'power2.out' });
+      gsap.to(m, { opacity: 0, duration: 0.4, delay: 0.7, onComplete: () => m.remove() });
     }
   }
 
-  /** 释放王字 + 雷电 */
+  /** 释放王字 + 雷电（扩散 100px，寿命 1.2s） */
   function releaseWang(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
+    // 主王字（CSS 56×56, 字号 44）
     const w = document.createElement('div');
     w.className = 'fx-wang';
     w.textContent = '王';
-    w.style.fontSize = '70px';
-    w.style.width = '70px';
-    w.style.height = '70px';
-    w.style.lineHeight = '70px';
     w.style.left = `${cx}px`;
     w.style.top = `${cy}px`;
     w.style.transform = 'translate(-50%, -50%) scale(0)';
-    w.style.boxShadow = `0 0 20px ${theme.color}`;
     layer.appendChild(w);
-    gsap.to(w, { scale: 1, duration: 0.4, ease: 'back.out(1.5)' });
-    gsap.to(w, { scale: 0, opacity: 0, duration: 0.3, delay: 0.6, onComplete: () => w.remove() });
-    F.radialBurst(layer, theme, 8, 70, 0.4);
+    gsap.to(w, { scale: 1.3, duration: 0.45, ease: 'back.out(1.5)' });
+    gsap.to(w, { scale: 0, opacity: 0, duration: 0.35, delay: 0.75, onComplete: () => w.remove() });
+    // 6 个小王字在主字周围弹出（更多、更远）
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement('div');
+      s.className = 'fx-wang';
+      s.style.fontSize = '28px';
+      s.style.width = '36px';
+      s.style.height = '36px';
+      s.style.lineHeight = '36px';
+      s.style.left = `${cx}px`;
+      s.style.top = `${cy}px`;
+      s.style.opacity = '0';
+      s.style.transform = 'translate(-50%, -50%) scale(0)';
+      layer.appendChild(s);
+      const angle = (i / 6) * 360;
+      gsap.to(s, {
+        x: Math.cos(angle * Math.PI / 180) * 100,
+        y: Math.sin(angle * Math.PI / 180) * 100,
+        scale: 1.0,
+        opacity: 1,
+        duration: 0.45,
+        delay: 0.15,
+        ease: 'back.out(1.5)'
+      });
+      gsap.to(s, { opacity: 0, scale: 0, duration: 0.35, delay: 0.85, onComplete: () => s.remove() });
+    }
+    F.radialBurst(layer, theme, 14, 120, 0.6);
   }
 
-  /** 释放豹纹弧线 */
+  /** 释放豹纹弧线（扩散 140px，寿命 1.2s，10 条） */
   function releaseLeoStripes(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
-    for (let i = 0; i < 4; i++) {
+    const { cx, cy } = getCenterCoordinates(layer);
+    // 10 条豹纹：10 个方向旋转 + 缩放，强化视觉冲击
+    for (let i = 0; i < 10; i++) {
       const s = document.createElement('div');
       s.className = 'fx-leo-stripe';
       s.style.background = theme.color;
-      s.style.width = '40px';
-      const angle = i * 45;
+      const angle = i * 36;
       s.style.left = `${cx}px`;
       s.style.top = `${cy}px`;
       s.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
       layer.appendChild(s);
       gsap.fromTo(s, { x: 0, opacity: 0, scaleX: 0 },
-        { x: Math.cos(angle * Math.PI / 180) * 80, opacity: 1, scaleX: 1, rotate: angle + 360, duration: 0.4, ease: 'power1.out' });
-      gsap.to(s, { opacity: 0, duration: 0.3, delay: 0.3, onComplete: () => s.remove() });
+        { x: Math.cos(angle * Math.PI / 180) * 140, opacity: 1, scaleX: 1, rotate: angle + 360, duration: 0.6, ease: 'back.out(1.5)' });
+      gsap.to(s, { opacity: 0, duration: 0.4, delay: 0.6, onComplete: () => s.remove() });
     }
   }
 
-  /** 释放月牙獠牙 */
+  /** 释放月牙獠牙（主月牙 1.6→2.0，獠牙散开 30px，寿命 1.2s） */
   function releaseMoonFang(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
     const m = document.createElement('div');
     m.className = 'fx-moon';
     m.style.left = `${cx}px`;
     m.style.top = `${cy}px`;
     m.style.transform = 'translate(-50%, -50%) rotate(-45deg) scale(0)';
     layer.appendChild(m);
-    gsap.to(m, { scale: 1.6, rotation: '45deg', duration: 0.4, ease: 'back.out(2)' });
-    gsap.to(m, { scale: 0, opacity: 0, duration: 0.3, delay: 0.5, onComplete: () => m.remove() });
-    [-1, 1].forEach(side => {
+    gsap.to(m, { scale: 2.0, rotation: '45deg', duration: 0.45, ease: 'back.out(2)' });
+    gsap.to(m, { scale: 0, opacity: 0, duration: 0.35, delay: 0.7, onComplete: () => m.remove() });
+    // 6 颗獠牙：上下左右对称排布
+    [{ dx: 0, dy: 30 }, { dx: 0, dy: -30 }, { dx: 30, dy: 0 }, { dx: -30, dy: 0 }, { dx: 22, dy: 22 }, { dx: -22, dy: -22 }].forEach((p, i) => {
       const f = document.createElement('div');
       f.className = 'fx-fang';
-      f.style.left = `${cx + side * 14}px`;
-      f.style.top = `${cy + 10}px`;
+      f.style.left = `${cx + p.dx}px`;
+      f.style.top = `${cy + p.dy}px`;
+      f.style.transform = 'translate(-50%, -50%)';
       layer.appendChild(f);
-      gsap.fromTo(f, { y: -10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.2, delay: 0.1 });
-      gsap.to(f, { y: 20, opacity: 0, duration: 0.3, delay: 0.4, onComplete: () => f.remove() });
+      gsap.fromTo(f, { scale: 0, opacity: 0 }, { scale: 1.2, opacity: 1, duration: 0.25, delay: 0.1 + i * 0.04, ease: 'back.out(2)' });
+      gsap.to(f, { opacity: 0, scale: 0, duration: 0.35, delay: 0.8, onComplete: () => f.remove() });
     });
   }
 
-  /** 释放骨爪 */
+  /** 释放骨爪（骨头 1.4→1.8，爪印 100px，寿命 1.3s） */
   function releaseBonePaw(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
     const bone = document.createElement('div');
     bone.className = 'fx-bone';
     bone.style.left = `${cx}px`;
     bone.style.top = `${cy}px`;
     bone.style.transform = 'translate(-50%, -50%) scale(0)';
     layer.appendChild(bone);
-    gsap.to(bone, { scale: 1.4, rotation: 360, duration: 0.4, ease: 'back.out(2)' });
-    gsap.to(bone, { scale: 0, opacity: 0, duration: 0.3, delay: 0.4, onComplete: () => bone.remove() });
-    for (let i = 0; i < 4; i++) {
+    gsap.to(bone, { scale: 1.8, rotation: 720, duration: 0.5, ease: 'back.out(2)' });
+    gsap.to(bone, { scale: 0, opacity: 0, duration: 0.35, delay: 0.7, onComplete: () => bone.remove() });
+    // 8 颗爪印，8 方向
+    for (let i = 0; i < 8; i++) {
       const p = document.createElement('div');
       p.className = 'fx-paw';
       p.style.color = theme.color;
-      const angle = (i / 4) * 360;
+      const angle = (i / 8) * 360;
       p.style.left = `${cx}px`;
       p.style.top = `${cy}px`;
       p.style.transform = 'translate(-50%, -50%)';
       layer.appendChild(p);
-      gsap.to(p, { x: Math.cos(angle * Math.PI / 180) * 60, y: Math.sin(angle * Math.PI / 180) * 60, opacity: 0, scale: 0.5, duration: 0.5, ease: 'power2.out', onComplete: () => p.remove() });
+      gsap.fromTo(p, { scale: 0, opacity: 1 }, {
+        x: Math.cos(angle * Math.PI / 180) * 100,
+        y: Math.sin(angle * Math.PI / 180) * 100,
+        opacity: 0,
+        scale: 0.6,
+        rotation: angle,
+        duration: 0.7,
+        delay: 0.15,
+        ease: 'power2.out',
+        onComplete: () => p.remove()
+      });
     }
   }
 
-  /** 释放胡须 */
+  /** 释放胡须（10 根，寿命 1.2s） */
   function releaseWhiskers(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
-    for (let i = 0; i < 6; i++) {
+    const { cx, cy } = getCenterCoordinates(layer);
+    // 10 根胡须：左右各 5 根，向两侧扇形散开
+    for (let i = 0; i < 10; i++) {
       const w = document.createElement('div');
       w.className = 'fx-whisker';
+      const side = i < 5 ? 1 : -1;
+      const row = i % 5;
+      // 胡须的 left 端固定在 cx, top 上下错开
       w.style.left = `${cx}px`;
-      w.style.top = `${cy - 8 + (i % 3) * 8}px`;
+      w.style.top = `${cy - 16 + row * 8}px`;
       w.style.transformOrigin = 'left center';
       layer.appendChild(w);
-      const side = i < 3 ? 1 : -1;
-      gsap.fromTo(w, { scaleX: 0, opacity: 0 }, { scaleX: 1.2, opacity: 1, duration: 0.2, delay: i * 0.04, x: side * 25 });
-      gsap.to(w, { opacity: 0, duration: 0.3, delay: 0.5 + i * 0.04, onComplete: () => w.remove() });
+      // side = 1 (右) 不翻转，side = -1 (左) 翻转 180deg
+      const baseRot = side === 1 ? 0 : 180;
+      const angle = (row - 2) * 14; // 扇形
+      w.style.transform = `rotate(${baseRot + angle}deg) scaleX(0)`;
+      gsap.to(w, { scaleX: 1, opacity: 1, duration: 0.3, delay: i * 0.04, ease: 'power2.out' });
+      gsap.to(w, { opacity: 0, duration: 0.35, delay: 0.8 + i * 0.04, onComplete: () => w.remove() });
     }
   }
 
-  /** 释放长尾 */
+  /** 释放长尾（旋转 1080→1440，爪印 90px，寿命 1.2s） */
   function releaseTail(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
     const tail = document.createElement('div');
     tail.className = 'fx-tail';
     tail.style.background = theme.color;
-    tail.style.width = '50px';
     tail.style.left = `${cx}px`;
     tail.style.top = `${cy}px`;
     tail.style.transformOrigin = 'left center';
     layer.appendChild(tail);
-    gsap.fromTo(tail, { scaleX: 0, rotate: 0 }, { scaleX: 1, rotate: 720, duration: 0.5, ease: 'power1.out' });
-    gsap.to(tail, { scaleX: 0, opacity: 0, duration: 0.2, delay: 0.5, onComplete: () => tail.remove() });
-    [-1, 1].forEach(side => {
+    gsap.fromTo(tail, { scaleX: 0, rotate: 0 }, { scaleX: 1, rotate: 1440, duration: 0.7, ease: 'power1.out' });
+    gsap.to(tail, { scaleX: 0, opacity: 0, duration: 0.25, delay: 0.7, onComplete: () => tail.remove() });
+    // 8 颗爪印：尾巴尖端散开
+    for (let i = 0; i < 8; i++) {
       const p = document.createElement('div');
       p.className = 'fx-paw';
       p.style.color = theme.color;
-      p.style.width = '8px';
-      p.style.height = '8px';
-      p.style.left = `${cx + side * 12}px`;
-      p.style.top = `${cy + 12}px`;
+      p.style.width = '14px';
+      p.style.height = '14px';
+      const angle = (i / 8) * 360;
+      p.style.left = `${cx}px`;
+      p.style.top = `${cy}px`;
+      p.style.transform = 'translate(-50%, -50%)';
       layer.appendChild(p);
-      gsap.to(p, { x: side * 8, y: 8, opacity: 0, duration: 0.4, onComplete: () => p.remove() });
-    });
+      gsap.to(p, {
+        x: Math.cos(angle * Math.PI / 180) * 90,
+        y: Math.sin(angle * Math.PI / 180) * 90,
+        opacity: 0,
+        scale: 0.5,
+        duration: 0.6,
+        delay: 0.3,
+        ease: 'power2.out',
+        onComplete: () => p.remove()
+      });
+    }
   }
 
   // ============== 跳河 / 陷阱 / 兽穴 / 反杀 的差异化释放 ==============
@@ -232,19 +284,17 @@ const FxList = (function () {
       l.className = 'fx-river-light';
       l.style.background = `linear-gradient(180deg, transparent 0%, ${theme.color} 50%, transparent 100%)`;
       l.style.color = theme.color;
-      l.style.width = '10px';
-      l.style.height = '80px';
-      l.style.left = `-30px`;
+      l.style.left = `-40px`;
       l.style.top = `${h/2 - 40 + (i === 0 ? -10 : 10)}px`;
       layer.appendChild(l);
       gsap.fromTo(l, { x: 0, scaleY: 0.3, opacity: 0 },
-        { x: w + 60, scaleY: 1, opacity: 1, duration: 0.6, delay: i * 0.05, ease: 'power2.in' });
+        { x: w + 80, scaleY: 1, opacity: 1, duration: 0.6, delay: i * 0.05, ease: 'power2.in' });
       gsap.to(l, { scaleY: 0, opacity: 0, duration: 0.15, delay: 0.6 + i * 0.05, onComplete: () => l.remove() });
     }
     for (let i = 0; i < 3; i++) {
       const r = document.createElement('div');
       r.className = 'fx-ripple';
-      const size = 24 + i * 18;
+      const size = 36 + i * 24;
       r.style.width = `${size}px`;
       r.style.height = `${size}px`;
       r.style.left = `${w/2 - size/2}px`;
@@ -260,20 +310,16 @@ const FxList = (function () {
     const wang = document.createElement('div');
     wang.className = 'fx-wang';
     wang.textContent = '王';
-    wang.style.fontSize = '50px';
-    wang.style.width = '50px';
-    wang.style.height = '50px';
-    wang.style.lineHeight = '50px';
-    wang.style.left = `-30px`;
-    wang.style.top = `${h/2 - 25}px`;
-    wang.style.boxShadow = `0 0 20px ${theme.color}`;
+    wang.style.left = `-40px`;
+    wang.style.top = `${h/2 - 28}px`;
+    wang.style.boxShadow = `0 0 24px ${theme.color}`;
     layer.appendChild(wang);
-    gsap.to(wang, { x: w + 60, rotation: 360, duration: 0.6, ease: 'power2.in' });
+    gsap.to(wang, { x: w + 80, rotation: 720, duration: 0.6, ease: 'power2.in' });
     gsap.to(wang, { opacity: 0, duration: 0.15, delay: 0.6, onComplete: () => wang.remove() });
     for (let i = 0; i < 3; i++) {
       const r = document.createElement('div');
       r.className = 'fx-ripple';
-      const size = 24 + i * 18;
+      const size = 36 + i * 24;
       r.style.width = `${size}px`;
       r.style.height = `${size}px`;
       r.style.left = `${w/2 - size/2}px`;
@@ -285,75 +331,82 @@ const FxList = (function () {
 
   /** 兽穴·大字弹出 */
   function releaseCrown(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
     const w = layer.clientWidth, h = layer.clientHeight;
-    // 4 道光束
-    const dirs = [[-1,-1],[1,-1],[-1,1],[1,1]];
-    dirs.forEach(([dx, dy]) => {
+    // 8 道光束
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * 360;
+      const dx = Math.cos(angle * Math.PI / 180);
+      const dy = Math.sin(angle * Math.PI / 180);
       const beam = document.createElement('div');
-      beam.style.width = '3px';
-      beam.style.height = '50px';
+      beam.style.width = '4px';
+      beam.style.height = '60px';
       beam.style.background = `linear-gradient(to end, ${theme.color}, transparent)`;
       beam.style.left = `${cx}px`;
       beam.style.top = `${cy}px`;
       beam.style.transformOrigin = 'top center';
+      beam.style.boxShadow = `0 0 8px ${theme.color}`;
       layer.appendChild(beam);
-      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
       gsap.fromTo(beam, { x: 0, y: 0, scaleX: 0, rotate: angle, opacity: 0 },
-        { x: dx * w * 0.3, y: dy * h * 0.3, scaleX: 1, opacity: 1, duration: 0.4, ease: 'power2.out' });
-      gsap.to(beam, { opacity: 0, duration: 0.3, delay: 0.4, onComplete: () => beam.remove() });
-    });
-    // 大字
+        { x: dx * w * 0.35, y: dy * h * 0.35, scaleX: 1, opacity: 1, duration: 0.5, delay: i * 0.03, ease: 'power2.out' });
+      gsap.to(beam, { opacity: 0, duration: 0.3, delay: 0.5, onComplete: () => beam.remove() });
+    }
+    // 大字"胜"（放大 + 强发光）
     const text = document.createElement('div');
     text.className = 'fx-victory-text';
     text.textContent = '胜';
     text.style.color = theme.color;
+    text.style.fontSize = '60px';
+    text.style.textShadow = `0 0 20px ${theme.color}, 0 0 40px ${theme.color}, 0 2px 4px rgba(0,0,0,0.5)`;
     layer.appendChild(text);
     gsap.fromTo(text, { scale: 0, rotation: -180, opacity: 0 },
-      { scale: 1, rotation: 0, opacity: 1, duration: 0.5, delay: 0.2, ease: 'back.out(1.7)' });
-    gsap.to(text, { scale: 0.5, opacity: 0, duration: 0.3, delay: 1, onComplete: () => text.remove() });
+      { scale: 1.2, rotation: 0, opacity: 1, duration: 0.5, delay: 0.2, ease: 'back.out(1.7)' });
+    gsap.to(text, { scale: 0.5, opacity: 0, duration: 0.3, delay: 1.2, onComplete: () => text.remove() });
   }
 
   /** 反杀·鼠吃象 */
   function releaseReverse(layer, theme) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
-    // 1. 鼠尾缠绕
+    const { cx, cy } = getCenterCoordinates(layer);
+    // 1. 鼠尾缠绕（CSS 70px 默认）
     const tail = document.createElement('div');
     tail.className = 'fx-tail';
     tail.style.background = '#9a9590';
-    tail.style.width = '60px';
     tail.style.left = `${cx}px`;
     tail.style.top = `${cy}px`;
     tail.style.transformOrigin = 'left center';
     layer.appendChild(tail);
-    gsap.fromTo(tail, { scaleX: 0, rotate: 0 }, { scaleX: 1, rotate: 720, duration: 0.5, ease: 'power1.out' });
+    gsap.fromTo(tail, { scaleX: 0, rotate: 0 }, { scaleX: 1, rotate: 1080, duration: 0.6, ease: 'power1.out' });
     // 2. 白线切断
     const line = document.createElement('div');
-    line.style.width = '2px';
-    line.style.height = '50px';
+    line.style.width = '3px';
+    line.style.height = '60px';
     line.style.background = '#fff';
-    line.style.boxShadow = '0 0 6px #fff';
+    line.style.boxShadow = '0 0 12px #fff, 0 0 24px #fff';
     line.style.left = `${cx}px`;
-    line.style.top = `${cy - 25}px`;
+    line.style.top = `${cy - 30}px`;
     line.style.transform = 'scaleY(0)';
     layer.appendChild(line);
     gsap.to(line, { scaleY: 1, duration: 0.2, delay: 0.3, ease: 'power2.out' });
     gsap.to(line, { opacity: 0, duration: 0.3, delay: 0.7, onComplete: () => line.remove() });
-    // 3. 象轰塌（4 块象牙碎片）
-    for (let i = 0; i < 4; i++) {
+    // 3. 象轰塌（6 块象牙碎片）
+    for (let i = 0; i < 6; i++) {
       const t = document.createElement('div');
       t.className = 'fx-tusk';
-      t.style.height = '30px';
       t.style.left = `${cx}px`;
       t.style.top = `${cy}px`;
-      const angle = (i / 4) * 360;
-      t.style.transform = `rotate(${angle}deg) translateY(-15px)`;
+      t.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+      const angle = (i / 6) * 360;
       layer.appendChild(t);
-      gsap.to(t, { x: Math.cos(angle * Math.PI / 180) * 70, y: Math.sin(angle * Math.PI / 180) * 70 + 40, opacity: 0, duration: 0.5, delay: 0.5, ease: 'power2.in', onComplete: () => t.remove() });
+      gsap.to(t, {
+        x: Math.cos(angle * Math.PI / 180) * 80,
+        y: Math.sin(angle * Math.PI / 180) * 80 + 50,
+        rotation: angle,
+        opacity: 0,
+        duration: 0.6,
+        delay: 0.4,
+        ease: 'power2.in',
+        onComplete: () => t.remove()
+      });
     }
     // 4. 闪白
     F.flash(layer, 0.3);
@@ -361,9 +414,7 @@ const FxList = (function () {
 
   /** 陷阱·通用：身体下陷 + 特征元素 */
   function releaseSink(layer, theme, opts = {}) {
-    // 优先从 layer CSS 变量读取目标格中心（由 base.js 注入）
-    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
-    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
+    const { cx, cy } = getCenterCoordinates(layer);
     // 身体下沉（用攻方颜色画一个圆代表）
     const body = document.createElement('div');
     body.style.width = '40px';

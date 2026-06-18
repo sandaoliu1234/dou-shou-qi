@@ -46,3 +46,5 @@ venv/
 
 # 项目内部文档（不上传 GitHub）
 /docs/
+
+/dogfood-output/

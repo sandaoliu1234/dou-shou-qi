@@ -291,14 +291,14 @@ function playCaptureSceneAt(targetCellEl, opts) {
   const attacker = document.createElement('img');
   attacker.className = 'fx-piece fx-piece-attacker';
   attacker.src = `assets/images/${attackerColor}/${attackerAnimal}.svg`;
-  attacker.style.cssText = `position: fixed; left: ${cx}px; top: ${cy}px; width: 90px; height: 90px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%);`;
+  attacker.style.cssText = `position: fixed !important; left: ${cx}px; top: ${cy}px; width: 120px; height: 120px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); z-index: 10000; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));`;
   layer.appendChild(attacker);
 
   // 守方 SVG
   const defender = document.createElement('img');
   defender.className = 'fx-piece fx-piece-defender';
   defender.src = `assets/images/${defenderColor}/${defenderAnimal}.svg`;
-  defender.style.cssText = `position: fixed; left: ${cx}px; top: ${cy}px; width: 90px; height: 90px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%);`;
+  defender.style.cssText = `position: fixed !important; left: ${cx}px; top: ${cy}px; width: 120px; height: 120px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); z-index: 10000; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));`;
   layer.appendChild(defender);
 
   // 信息条
@@ -331,7 +331,7 @@ function playCaptureSceneAt(targetCellEl, opts) {
   }, 0);
   tl.to(attacker, {
     x: attackerStopX,    // 停在目标格一侧外
-    duration: 0.4, ease: 'power2.out'
+    duration: 0.6, ease: 'power2.out'
   }, 0);
 
   // 阶段 2：守方从屏幕另一侧滑入
@@ -343,8 +343,8 @@ function playCaptureSceneAt(targetCellEl, opts) {
   }, 0);
   tl.to(defender, {
     x: defenderStopX,     // 停在目标格另一侧外
-    duration: 0.4, ease: 'power2.out'
-  }, 0.1);
+    duration: 0.6, ease: 'power2.out'
+  }, 0.15);
 
   // 阶段 3：攻方冲撞到目标格中心 + 闪白
   // attacker/defender 已经 center 在 (cx, cy)，所以 x:0,y:0 即冲撞到中心
@@ -353,36 +353,52 @@ function playCaptureSceneAt(targetCellEl, opts) {
   // 用 filter:drop-shadow 红光制造"冲击"视觉，不再用白圆
   tl.to(attacker, {
     x: 0, y: 0,
-    scale: 1.4,
-    rotation: 15,
-    filter: 'drop-shadow(0 0 18px rgba(255, 80, 60, 0.9)) drop-shadow(0 0 6px rgba(255, 200, 100, 0.8))',
-    duration: 0.18, ease: 'power2.in'
-  }, 0.55);
+    scale: 1.8,
+    rotation: 20,
+    filter: 'drop-shadow(0 0 30px rgba(255, 80, 60, 1)) drop-shadow(0 0 15px rgba(255, 200, 100, 0.9)) brightness(1.3)',
+    duration: 0.15, ease: 'power2.in'
+  }, 0.75);
 
   // 阶段 4：守方淡出（守方中心已经在 (cx, cy)，所以 x:0,y:0）
   tl.to(defender, {
     x: 0, y: 0,
-    opacity: 0, scale: 0.3, rotation: 30,
-    duration: 0.2, ease: 'power2.in'
-  }, 0.55);
+    opacity: 0, scale: 0.2, rotation: 45,
+    duration: 0.25, ease: 'power2.in'
+  }, 0.75);
 
-  // 阶段 5：攻方反弹 + 元素释放（缩回 1.0 + 倾角归零 + 阴影渐隐）
+  // 阶段 5：攻方缩小让位（让元素从中心释放不被遮挡）
+  // 0.95s 反弹到 scale 1 完成后，再快速缩小到 0.3，给元素让出中心
   tl.to(attacker, {
     scale: 1,
     rotation: 0,
-    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
+    filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))',
     duration: 0.25, ease: 'back.out(2)'
-  }, 0.75);
+  }, 0.95);
 
+  // 0.95s → 1.05s：攻方快速缩小到 0.3（腾出中心给元素释放）
+  tl.to(attacker, {
+    scale: 0.3,
+    opacity: 0.4,
+    duration: 0.15, ease: 'power2.in'
+  }, 1.2);
+
+  // 阶段 6：元素释放（攻方已缩小，不再遮挡）
   tl.call(() => {
     if (typeof releaseFx === 'function') releaseFx(layer, theme || ANIMAL_THEMES[attackerAnimal]);
-  }, [], 0.8);
+  }, [], 1.25);
 
-  // 收尾清理（2.5s 后）
+  // 阶段 7：攻方在元素释放完成后重新淡入 + 恢复原始大小
+  tl.to(attacker, {
+    scale: 1,
+    opacity: 1,
+    duration: 0.3, ease: 'back.out(1.7)'
+  }, 2.0);
+
+  // 收尾清理（3.0s 后，确保元素全部消失）
   tl.call(() => {
     [attacker, defender, info].forEach(el => el && el.remove());
     layer.remove();
-  }, [], 2.5);
+  }, [], 3.0);
 
   return tl;
 }

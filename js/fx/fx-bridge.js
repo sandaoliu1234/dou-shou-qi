@@ -113,8 +113,8 @@ const FxBridge = (function () {
             targetCell: ctx.toCellEl
           });
         }
-        // 等动画结束（~2.7s, 5 阶段 + 元素释放 + 缓冲）
-        setTimeout(resolve, 2700);
+        // 等动画结束（~3.2s: 5 阶段 + 元素释放 + 攻方淡入 + 缓冲）
+        setTimeout(resolve, 3200);
       } catch (e) {
         console.error('FxBridge.playForCapture:', e);
         resolve();
