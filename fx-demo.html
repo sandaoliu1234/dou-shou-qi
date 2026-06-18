@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>斗兽棋 · 吃子特效演示</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/fx.css" />
+  <script src="node_modules/gsap/dist/gsap.min.js"></script>
+</head>
+<body>
+  <div class="fx-demo-app">
+    <header class="fx-demo-header">
+      <h1>吃子特效演示 · 27 种</h1>
+      <p class="hint">点击任意按钮，在下方舞台播放对应特效</p>
+
+      <!-- 控制条：攻方主公 + 静音 -->
+      <div class="fx-controls">
+        <div class="ctrl-group">
+          <span class="ctrl-label">攻方主公：</span>
+          <button id="btnSideRed" class="ctrl-side ctrl-side-red active" data-side="red">
+            <span class="dot"></span>红方
+          </button>
+          <button id="btnSideBlue" class="ctrl-side ctrl-side-blue" data-side="blue">
+            <span class="dot"></span>蓝方
+          </button>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">音效：</span>
+          <button id="btnSound" class="ctrl-sound" data-on="true">
+            <span class="sound-icon">🔊</span>
+            <span class="sound-text">开</span>
+          </button>
+        </div>
+        <button id="btnReplayAll" class="btn-replay-all">▶ 顺序播放全部 27 种</button>
+      </div>
+    </header>
+
+    <main class="fx-demo-main">
+      <!-- 舞台 -->
+      <section class="fx-stage" id="fxStage">
+        <div class="fx-stage-cell" id="fxCell" data-label="舞台">
+          <div class="fx-stage-bg"></div>
+          <!-- 音频解锁提示 -->
+          <div class="fx-audio-hint" id="fxAudioHint">
+            <div class="audio-hint-inner">
+              <span class="audio-icon">🔊</span>
+              <span>点击任意位置启用音效</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 按钮组 -->
+      <section class="fx-buttons" id="fxButtons">
+        <!-- 由 JS 动态生成 27 个按钮 -->
+      </section>
+    </main>
+  </div>
+
+  <script src="js/fx/themes.js"></script>
+  <script src="js/fx/base.js"></script>
+  <script src="js/fx/sound.js"></script>
+  <script src="js/fx/list.js"></script>
+  <script src="js/fx/main.js"></script>
+</body>
+</html>

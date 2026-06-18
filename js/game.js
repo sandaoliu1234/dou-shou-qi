@@ -12,6 +12,23 @@ const PIECE_TYPES = {
     RAT: { name: '鼠', level: 1, image: 'rat.svg' }
 };
 
+// 玩家设置（特效/音效开关），localStorage 持久化
+const SETTINGS_KEY = 'doushouqi-settings';
+const settings = (function () {
+    const defaults = { fxEnabled: true, soundEnabled: true };
+    try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) return Object.assign({}, defaults, JSON.parse(raw));
+    } catch (e) { /* localStorage 不可用时静默 */ }
+    return defaults;
+})();
+
+function saveSettings() {
+    try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (e) { /* 静默 */ }
+}
+
 // 抽屉状态
 let drawerState = {
   open: false,
@@ -29,7 +46,8 @@ let gameState = {
     validMoves: [],
     gameOver: false,
     redPieces: 8,
-    bluePieces: 8
+    bluePieces: 8,
+    fxPlaying: false   // 特效播放中，禁止玩家操作
 };
 
 // 棋盘尺寸
@@ -79,9 +97,10 @@ function isRiver(row, col) {
 function isDen(row, col, player) {
     if (player === 'red') {
         return row === RED_DEN.row && col === RED_DEN.col;
-    } else {
+    } else if (player === 'blue') {
         return row === BLUE_DEN.row && col === BLUE_DEN.col;
     }
+    return false;
 }
 
 // 检查是否是某方的陷阱
@@ -363,29 +382,40 @@ function renderBoard() {
 }
 
 // 处理格子点击
-function handleCellClick(row, col) {
+async function handleCellClick(row, col) {
     if (gameState.gameOver) return;
-    
+
+    // 特效播放中，忽略点击
+    if (gameState.fxPlaying) {
+        updateHint('正在播放特效，请稍候…');
+        return;
+    }
+
+    // 首次点击解锁音效
+    if (window.FxSound && typeof window.FxSound.unlock === 'function') {
+        try { window.FxSound.unlock(); } catch (e) { /* 静默 */ }
+    }
+
     const clickedPiece = gameState.board[row][col];
-    
+
     if (gameState.selectedPiece) {
         const validMove = gameState.validMoves.find(m => m.row === row && m.col === col);
-        
+
         if (validMove) {
-            movePiece(gameState.selectedPiece.row, gameState.selectedPiece.col, row, col);
+            await movePiece(gameState.selectedPiece.row, gameState.selectedPiece.col, row, col);
             return;
         }
-        
+
         if (clickedPiece && clickedPiece.owner === gameState.currentPlayer) {
             selectPiece(row, col);
             return;
         }
-        
+
         clearSelection();
         renderBoard();
         return;
     }
-    
+
     if (clickedPiece && clickedPiece.owner === gameState.currentPlayer) {
         selectPiece(row, col);
     }
@@ -418,12 +448,38 @@ function clearSelection() {
 }
 
 // 移动棋子
-function movePiece(fromRow, fromCol, toRow, toCol) {
+/**
+ * 移动棋子（含吃子、跳河、兽穴、陷阱、反杀、移动）
+ * - 动效优先：先播特效，再更新 board，最后换手
+ * - 动画期间 fxPlaying = true，handleCellClick 自动拒绝点击
+ */
+async function movePiece(fromRow, fromCol, toRow, toCol) {
     const movingPiece = gameState.board[fromRow][fromCol];
-    // 记录日志（在覆盖目标格前）
     const capturedPiece = gameState.board[toRow][toCol];
     const pieceName = PIECE_TYPES[movingPiece.type].name;
     const playerName = movingPiece.owner === 'red' ? '红方' : '蓝方';
+
+    // 锁棋盘
+    gameState.fxPlaying = true;
+    updateHint(`正在播放 ${playerName}${pieceName} 的动作…`);
+
+    // 1. 事件分类
+    const eventInfo = (window.FxBridge && window.FxBridge.categorizeMove)
+        ? window.FxBridge.categorizeMove(movingPiece, capturedPiece, fromRow, fromCol, toRow, toCol)
+        : { category: '移动', scene: 'move', animal: 'dog', defenderAnimal: null };
+
+    // 2. 播放特效
+    const fromCellEl = getCellEl(fromRow, fromCol);
+    const toCellEl = getCellEl(toRow, toCol);
+    if (window.FxBridge && window.FxBridge.playFor) {
+        await window.FxBridge.playFor(eventInfo, {
+            fromCellEl, toCellEl,
+            attacker: movingPiece,
+            defender: capturedPiece
+        }, settings);
+    }
+
+    // 3. 记录日志（在覆盖目标格前）
     if (capturedPiece) {
         const capturedName = PIECE_TYPES[capturedPiece.type].name;
         logMove(`${playerName}${pieceName} 吃 ${capturedName}`, movingPiece.owner);
@@ -431,35 +487,41 @@ function movePiece(fromRow, fromCol, toRow, toCol) {
         logMove(`${playerName}${pieceName} 移动到 (${toRow + 1},${toCol + 1})`, movingPiece.owner);
     }
 
+    // 4. 真正更新棋盘
     gameState.board[toRow][toCol] = movingPiece;
     gameState.board[fromRow][fromCol] = null;
-    
+
     clearSelection();
-    
+
+    // 5. 兽穴获胜判定
     if (isEnemyDen(toRow, toCol, movingPiece.owner)) {
         countPieces();
         renderBoard();
+        gameState.fxPlaying = false;
         showWinner(movingPiece.owner, '成功占领敌方兽穴！');
         return;
     }
-    
+
     countPieces();
     if (movingPiece.owner === 'red' && gameState.bluePieces === 0) {
         renderBoard();
+        gameState.fxPlaying = false;
         showWinner('red', '已消灭所有敌方棋子！');
         return;
     }
     if (movingPiece.owner === 'blue' && gameState.redPieces === 0) {
         renderBoard();
+        gameState.fxPlaying = false;
         showWinner('blue', '已消灭所有敌方棋子！');
         return;
     }
-    
-    gameState.currentPlayer = gameState.currentPlayer === 'red' ? 'blue' : 'red';
-    
+
+    // 6. 换手
+    gameState.currentPlayer = movingPiece.owner === 'red' ? 'blue' : 'red';
     renderBoard();
     updateTurnIndicator();
     updateHint(`等待${gameState.currentPlayer === 'red' ? '红方' : '蓝方'}行动...`);
+    gameState.fxPlaying = false;
 }
 
 // 更新回合指示器
@@ -509,7 +571,8 @@ function restartGame() {
         validMoves: [],
         gameOver: false,
         redPieces: 8,
-        bluePieces: 8
+        bluePieces: 8,
+        fxPlaying: false
     };
     
     initBoard();
@@ -518,6 +581,20 @@ function restartGame() {
     updateHint('游戏开始！请红方选择棋子移动');
     moveLog.length = 0;
     renderLog();
+}
+
+// 暴露给 FxBridge 使用的全局工具函数（兜底逻辑）
+window.isRiver = isRiver;
+window.isEnemyDen = isEnemyDen;
+window.isTrap = isTrap;
+
+/**
+ * 根据 row/col 找到棋盘 DOM 格子
+ */
+function getCellEl(row, col) {
+    const board = document.getElementById('board');
+    if (!board) return null;
+    return board.querySelector(`[data-row="${row}"][data-col="${col}"]`);
 }
 
 // 初始化游戏
@@ -530,6 +607,26 @@ function initGame() {
         tab.addEventListener('click', () => toggleDrawer(tab.dataset.tab));
     });
     document.getElementById('drawerToggle').addEventListener('click', () => toggleDrawer(null));
+
+    // 开关绑定（特效 / 音效）
+    const fxToggle = document.getElementById('toggleFx');
+    const soundToggle = document.getElementById('toggleSound');
+    if (fxToggle) {
+        fxToggle.checked = settings.fxEnabled;
+        fxToggle.addEventListener('change', function () {
+            settings.fxEnabled = this.checked;
+            saveSettings();
+        });
+    }
+    if (soundToggle) {
+        soundToggle.checked = settings.soundEnabled;
+        soundToggle.addEventListener('change', function () {
+            settings.soundEnabled = this.checked;
+            if (window.FxSound) window.FxSound.setMuted(!this.checked);
+            saveSettings();
+        });
+        if (window.FxSound) window.FxSound.setMuted(!soundToggle.checked);
+    }
 
     initBoard();
     renderBoard();

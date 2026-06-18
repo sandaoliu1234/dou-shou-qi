@@ -89,7 +89,21 @@
         </div>
         <div class="drawer-body" data-panel="settings" hidden>
             <h3>游戏设置</h3>
-            <p style="color:var(--color-text-soft);font-size:13px">当前版本无额外设置项。点击「重新开始」可重置棋局。</p>
+            <div class="settings-row">
+                <label class="switch">
+                    <input type="checkbox" id="toggleFx" checked />
+                    <span class="slider"></span>
+                </label>
+                <span class="settings-label">吃子特效</span>
+            </div>
+            <div class="settings-row">
+                <label class="switch">
+                    <input type="checkbox" id="toggleSound" checked />
+                    <span class="slider"></span>
+                </label>
+                <span class="settings-label">音效</span>
+            </div>
+            <p style="color:var(--color-text-soft);font-size:13px;margin-top:12px">点击「重新开始」可重置棋局。</p>
         </div>
     </aside>
 
@@ -102,6 +116,13 @@
         </div>
     </div>
 
+    <script src="node_modules/gsap/dist/gsap.min.js"></script>
     <script src="js/game.js"></script>
+    <!-- 吃子特效模块 -->
+    <script src="js/fx/themes.js"></script>
+    <script src="js/fx/base.js"></script>
+    <script src="js/fx/sound.js"></script>
+    <script src="js/fx/list.js"></script>
+    <script src="js/fx/fx-bridge.js"></script>
 </body>
 </html>
