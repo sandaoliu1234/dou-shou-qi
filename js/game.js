@@ -248,6 +248,10 @@ function getValidMoves(row, col) {
                 } else {
                     // 到达陆地
                     if (jumpedRiver && !blocked) {
+                        // 禁止跳入己方兽穴
+                        if (isDen(newRow, newCol, piece.owner)) {
+                            break;
+                        }
                         const target = gameState.board[newRow][newCol];
                         if (!target) {
                             moves.push({ row: newRow, col: newCol });
@@ -305,6 +309,22 @@ function getValidMoves(row, col) {
     }
     
     return moves;
+}
+
+// 检查某一方是否有任何合法移动（用于困毙判定）
+function hasAnyValidMove(player) {
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const piece = gameState.board[row][col];
+            if (piece && piece.owner === player) {
+                const moves = getValidMoves(row, col);
+                if (moves.length > 0) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 // 渲染棋盘
@@ -516,8 +536,17 @@ async function movePiece(fromRow, fromCol, toRow, toCol) {
         return;
     }
 
-    // 6. 换手
-    gameState.currentPlayer = movingPiece.owner === 'red' ? 'blue' : 'red';
+    // 6. 困毙判定：对方是否已无任何合法移动
+    const opponent = movingPiece.owner === 'red' ? 'blue' : 'red';
+    if (!hasAnyValidMove(opponent)) {
+        renderBoard();
+        gameState.fxPlaying = false;
+        showWinner(movingPiece.owner, '对方棋子全部被困，无法行动！');
+        return;
+    }
+
+    // 7. 换手
+    gameState.currentPlayer = opponent;
     renderBoard();
     updateTurnIndicator();
     updateHint(`等待${gameState.currentPlayer === 'red' ? '红方' : '蓝方'}行动...`);
