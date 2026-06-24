@@ -15,6 +15,8 @@
                 <span class="topbar-subtitle">丛林争霸 · 智慧对决</span>
             </div>
             <div class="topbar-actions">
+                <button class="btn-online-toggle" id="btnOnlineToggle">🌐 联机对战</button>
+                <button class="btn-ai-toggle" id="btnAiToggle">👥 双人对战</button>
                 <a href="rules.html">📖 查看游戏规则</a>
             </div>
         </header>
@@ -35,7 +37,10 @@
                     <span>当前回合</span>
                     <span class="turn-player" id="turnPlayer">红方</span>
                 </div>
-                <button class="btn-restart" id="btnRestart">重新开始</button>
+                <div class="game-status-actions">
+                    <button class="btn-undo" id="btnUndo" disabled title="悔棋（撤销上一步）">↶ 悔棋</button>
+                    <button class="btn-restart" id="btnRestart">重新开始</button>
+                </div>
             </div>
 
             <div class="player-card player-blue" id="playerBlue">
@@ -116,8 +121,70 @@
         </div>
     </div>
 
+    <!-- 选色弹窗（人机模式） -->
+    <div class="modal" id="pickSideModal">
+        <div class="modal-content">
+            <button class="modal-close" data-close-modal="pickSideModal" aria-label="关闭">×</button>
+            <h2>🤖 人机模式</h2>
+            <p>请选择你的执子颜色</p>
+            <div class="pick-side-actions">
+                <button class="btn-pick-side btn-pick-red" data-side="red">
+                    <span class="pick-side-icon">🦁</span>
+                    <span>我执红方（先手）</span>
+                </button>
+                <button class="btn-pick-side btn-pick-blue" data-side="blue">
+                    <span class="pick-side-icon">🐯</span>
+                    <span>我执蓝方（后手）</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 联机对战弹窗 -->
+    <div class="modal" id="onlineModal">
+        <div class="modal-content">
+            <button class="modal-close" data-close-modal="onlineModal" aria-label="关闭">×</button>
+            <h2>🌐 联机对战</h2>
+            <div class="online-actions">
+                <button class="btn-online-action btn-create-room" id="btnCreateRoom">创建房间</button>
+                <div class="join-room-group">
+                    <input type="text" class="room-id-input" id="roomIdInput" placeholder="输入房间号" maxlength="4" />
+                    <button class="btn-online-action btn-join-room" id="btnJoinRoom">加入房间</button>
+                </div>
+            </div>
+            <div class="room-info" id="roomInfo" style="display:none;">
+                <p>房间号：<span id="displayRoomId"></span></p>
+                <p>等待对手加入...</p>
+            </div>
+            <button class="btn-cancel-online" id="btnCancelOnline">取消</button>
+        </div>
+    </div>
+
+    <!-- 聊天图标按钮（浮动在右下角） -->
+    <button class="chat-fab" id="chatFab" title="聊天" aria-label="打开聊天">
+        <span class="chat-fab-icon">💬</span>
+        <span class="chat-fab-badge" id="chatBadge" style="display:none">0</span>
+    </button>
+
+    <!-- 聊天面板 -->
+    <div class="chat-panel" id="chatPanel">
+        <div class="chat-header">
+            <span>💬 房间聊天</span>
+            <button class="chat-close" id="chatClose" title="关闭" aria-label="关闭聊天">✕</button>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input">
+            <input type="text" id="chatInput" placeholder="输入消息..." maxlength="200" />
+            <button id="chatSend">发送</button>
+        </div>
+    </div>
+
+    <script src="node_modules/socket.io/client-dist/socket.io.min.js"></script>
     <script src="node_modules/gsap/dist/gsap.min.js"></script>
+    <script src="js/game-core.js"></script>
     <script src="js/game.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/online.js"></script>
     <!-- 吃子特效模块 -->
     <script src="js/fx/themes.js"></script>
     <script src="js/fx/base.js"></script>

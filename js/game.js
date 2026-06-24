@@ -1,18 +1,14 @@
-// 斗兽棋游戏逻辑
+// 斗兽棋游戏逻辑（UI层）
 
-// 棋子类型定义
-const PIECE_TYPES = {
-    ELEPHANT: { name: '象', level: 8, image: 'elephant.svg' },
-    LION: { name: '狮', level: 7, image: 'lion.svg' },
-    TIGER: { name: '虎', level: 6, image: 'tiger.svg' },
-    LEOPARD: { name: '豹', level: 5, image: 'leopard.svg' },
-    WOLF: { name: '狼', level: 4, image: 'wolf.svg' },
-    DOG: { name: '狗', level: 3, image: 'dog.svg' },
-    CAT: { name: '猫', level: 2, image: 'cat.svg' },
-    RAT: { name: '鼠', level: 1, image: 'rat.svg' }
-};
-
-// 玩家设置（特效/音效开关），localStorage 持久化
+// 从 GameCore 引入纯游戏逻辑
+const {
+  PIECE_TYPES, ROWS, COLS,
+  RED_DEN, BLUE_DEN, RED_TRAPS, BLUE_TRAPS,
+  isValidPosition, isRiver, isDen, isTrap, isEnemyDen, canCapture,
+  initBoard: gcInitBoard, countPieces: gcCountPieces,
+  getValidMoves: gcGetValidMoves, hasAnyValidMove: gcHasAnyValidMove,
+  executeMove: gcExecuteMove, cloneBoard
+} = window.GameCore;
 const SETTINGS_KEY = 'doushouqi-settings';
 const settings = (function () {
     const defaults = { fxEnabled: true, soundEnabled: true };
@@ -47,290 +43,45 @@ let gameState = {
     gameOver: false,
     redPieces: 8,
     bluePieces: 8,
-    fxPlaying: false   // 特效播放中，禁止玩家操作
+    fxPlaying: false,   // 特效播放中，禁止玩家操作
+    history: [],        // 走棋历史栈（每条含 board 快照 + 走棋信息，供悔棋使用）
+    mode: 'pvp',        // 'pvp' 双人 / 'pve' 人机 / 'online' 联机
+    aiSide: null,       // 'red' | 'blue' | null
+    onlineSide: null    // 联机模式下自己的执子方
 };
-
-// 棋盘尺寸
-const ROWS = 7;
-const COLS = 9;
-
-// 特殊地形位置
-const RED_DEN = { row: 0, col: 3 };
-const BLUE_DEN = { row: 6, col: 3 };
-
-const RED_TRAPS = [
-    { row: 0, col: 2 },
-    { row: 0, col: 4 },
-    { row: 1, col: 3 }
-];
-
-const BLUE_TRAPS = [
-    { row: 6, col: 2 },
-    { row: 6, col: 4 },
-    { row: 5, col: 3 }
-];
-
-// 河流位置：棋盘中间三行，左右两侧各有两列河流，中间是陆地
-const RIVER_CELLS = [
-    // 第3行(索引2)
-    { row: 2, col: 1 }, { row: 2, col: 2 },
-    { row: 2, col: 6 }, { row: 2, col: 7 },
-    // 第4行(索引3)
-    { row: 3, col: 1 }, { row: 3, col: 2 },
-    { row: 3, col: 6 }, { row: 3, col: 7 },
-    // 第5行(索引4)
-    { row: 4, col: 1 }, { row: 4, col: 2 },
-    { row: 4, col: 6 }, { row: 4, col: 7 }
-];
-
-// 检查位置是否在棋盘内
-function isValidPosition(row, col) {
-    return row >= 0 && row < ROWS && col >= 0 && col < COLS;
-}
-
-// 检查是否是河流
-function isRiver(row, col) {
-    return RIVER_CELLS.some(cell => cell.row === row && cell.col === col);
-}
-
-// 检查是否是某方的兽穴
-function isDen(row, col, player) {
-    if (player === 'red') {
-        return row === RED_DEN.row && col === RED_DEN.col;
-    } else if (player === 'blue') {
-        return row === BLUE_DEN.row && col === BLUE_DEN.col;
-    }
-    return false;
-}
-
-// 检查是否是某方的陷阱
-function isTrap(row, col, player) {
-    if (player === 'red') {
-        return RED_TRAPS.some(trap => trap.row === row && trap.col === col);
-    } else {
-        return BLUE_TRAPS.some(trap => trap.row === row && trap.col === col);
-    }
-}
-
-// 检查是否是敌方兽穴
-function isEnemyDen(row, col, player) {
-    if (player === 'red') {
-        return row === BLUE_DEN.row && col === BLUE_DEN.col;
-    } else {
-        return row === RED_DEN.row && col === RED_DEN.col;
-    }
-}
 
 // 初始化棋盘
 function initBoard() {
-    // 创建空棋盘
-    gameState.board = [];
-    for (let row = 0; row < ROWS; row++) {
-        gameState.board[row] = [];
-        for (let col = 0; col < COLS; col++) {
-            gameState.board[row][col] = null;
-        }
-    }
-
-    // ========== 红方棋子（顶部，玩家1）==========
-    // 行0：象(左)、空、陷阱(左)、兽穴、陷阱(右)、空、狮(右)
-    gameState.board[0][0] = { type: 'ELEPHANT', owner: 'red' };
-    gameState.board[0][8] = { type: 'LION', owner: 'red' };
-    
-    // 行1：空、虎、空、陷阱、空、空、豹、空
-    gameState.board[1][1] = { type: 'TIGER', owner: 'red' };
-    gameState.board[1][6] = { type: 'LEOPARD', owner: 'red' };
-    
-    // 行2：狼、空、狗、空、猫、空、狗、空、鼠
-    // 注意：行2有河，列1-2和列6-7是河，列0,3,4,5,8是陆地
-    gameState.board[2][0] = { type: 'WOLF', owner: 'red' };
-    gameState.board[2][8] = { type: 'RAT', owner: 'red' };
-    gameState.board[2][3] = { type: 'DOG', owner: 'red' };
-    gameState.board[2][5] = { type: 'CAT', owner: 'red' };
-
-    // ========== 蓝方棋子（底部，玩家2）==========
-    // 行6：狮(左)、空、陷阱(左)、兽穴、陷阱(右)、空、象(右)
-    gameState.board[6][0] = { type: 'LION', owner: 'blue' };
-    gameState.board[6][8] = { type: 'ELEPHANT', owner: 'blue' };
-    
-    // 行5：空、豹、空、陷阱、空、空、虎、空
-    gameState.board[5][1] = { type: 'LEOPARD', owner: 'blue' };
-    gameState.board[5][6] = { type: 'TIGER', owner: 'blue' };
-    
-    // 行4：鼠、空、狗、空、猫、空、狼、空...
-    // 注意：行4有河，列1-2和列6-7是河，列0,3,4,5,8是陆地
-    gameState.board[4][0] = { type: 'RAT', owner: 'blue' };
-    gameState.board[4][8] = { type: 'WOLF', owner: 'blue' };
-    gameState.board[4][3] = { type: 'CAT', owner: 'blue' };
-    gameState.board[4][5] = { type: 'DOG', owner: 'blue' };
-
-    // 检查棋子数量
+    gameState.board = gcInitBoard();
     countPieces();
 }
 
 // 计算双方剩余棋子数
 function countPieces() {
-    let red = 0;
-    let blue = 0;
-    for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-            if (gameState.board[row][col]) {
-                if (gameState.board[row][col].owner === 'red') red++;
-                else blue++;
-            }
-        }
-    }
-    gameState.redPieces = red;
-    gameState.bluePieces = blue;
-    document.getElementById('redCount').textContent = red;
-    document.getElementById('blueCount').textContent = blue;
-}
-
-// 判断棋子是否可以吃另一个棋子
-function canCapture(attacker, defender, defenderRow, defenderCol) {
-    if (!attacker || !defender) return false;
-    if (attacker.owner === defender.owner) return false;
-    
-    const attackerType = PIECE_TYPES[attacker.type];
-    const defenderType = PIECE_TYPES[defender.type];
-    
-    // 如果防守方在己方陷阱里，则任人鱼肉
-    if (isTrap(defenderRow, defenderCol, defender.owner)) {
-        return true;
-    }
-    
-    // 鼠可以吃象（特殊规则）
-    if (attacker.type === 'RAT' && defender.type === 'ELEPHANT') {
-        return true;
-    }
-    
-    // 象不能吃鼠（象怕鼠）
-    if (attacker.type === 'ELEPHANT' && defender.type === 'RAT') {
-        return false;
-    }
-    
-    // 普通规则：等级高的可以吃等级低的或同级
-    return attackerType.level >= defenderType.level;
+    const pieces = gcCountPieces(gameState.board);
+    gameState.redPieces = pieces.red;
+    gameState.bluePieces = pieces.blue;
+    document.getElementById('redCount').textContent = pieces.red;
+    document.getElementById('blueCount').textContent = pieces.blue;
 }
 
 // 获取棋子可以移动到的所有位置
 function getValidMoves(row, col) {
-    const piece = gameState.board[row][col];
-    if (!piece) return [];
-    
-    const moves = [];
-    
-    // 狮和虎可以跳河
-    if (piece.type === 'LION' || piece.type === 'TIGER') {
-        const directions = [
-            { dr: -1, dc: 0 },
-            { dr: 1, dc: 0 },
-            { dr: 0, dc: -1 },
-            { dr: 0, dc: 1 }
-        ];
-        
-        for (const dir of directions) {
-            let newRow = row + dir.dr;
-            let newCol = col + dir.dc;
-            let jumpedRiver = false;
-            let blocked = false;
-            
-            while (isValidPosition(newRow, newCol)) {
-                if (isRiver(newRow, newCol)) {
-                    // 如果河里有棋子（鼠），则不能跳过
-                    if (gameState.board[newRow][newCol]) {
-                        blocked = true;
-                        break;
-                    }
-                    jumpedRiver = true;
-                    newRow += dir.dr;
-                    newCol += dir.dc;
-                } else {
-                    // 到达陆地
-                    if (jumpedRiver && !blocked) {
-                        // 禁止跳入己方兽穴
-                        if (isDen(newRow, newCol, piece.owner)) {
-                            break;
-                        }
-                        const target = gameState.board[newRow][newCol];
-                        if (!target) {
-                            moves.push({ row: newRow, col: newCol });
-                        } else if (target.owner !== piece.owner) {
-                            if (canCapture(piece, target, newRow, newCol)) {
-                                moves.push({ row: newRow, col: newCol, capture: true });
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-    }
-    
-    // 普通移动：上下左右一格
-    const directions = [
-        { dr: -1, dc: 0 },
-        { dr: 1, dc: 0 },
-        { dr: 0, dc: -1 },
-        { dr: 0, dc: 1 }
-    ];
-    
-    for (const dir of directions) {
-        const newRow = row + dir.dr;
-        const newCol = col + dir.dc;
-        
-        if (!isValidPosition(newRow, newCol)) continue;
-        
-        // 检查是否是河流
-        if (isRiver(newRow, newCol)) {
-            if (piece.type !== 'RAT') continue;
-        }
-        
-        // 检查是否是己方兽穴
-        if (isDen(newRow, newCol, piece.owner)) continue;
-        
-        const targetPiece = gameState.board[newRow][newCol];
-        
-        if (!targetPiece) {
-            moves.push({ row: newRow, col: newCol });
-        } else if (targetPiece.owner !== piece.owner) {
-            // 鼠在水中不能吃陆地上的棋子，陆地上的棋子也不能吃水中的鼠
-            if (piece.type === 'RAT' && isRiver(row, col) !== isRiver(newRow, newCol)) {
-                continue;
-            }
-            if (targetPiece.type === 'RAT' && isRiver(newRow, newCol) !== isRiver(row, col)) {
-                continue;
-            }
-            
-            if (canCapture(piece, targetPiece, newRow, newCol)) {
-                moves.push({ row: newRow, col: newCol, capture: true });
-            }
-        }
-    }
-    
-    return moves;
+    return gcGetValidMoves(gameState.board, row, col);
 }
 
 // 检查某一方是否有任何合法移动（用于困毙判定）
 function hasAnyValidMove(player) {
-    for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-            const piece = gameState.board[row][col];
-            if (piece && piece.owner === player) {
-                const moves = getValidMoves(row, col);
-                if (moves.length > 0) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+    return gcHasAnyValidMove(gameState.board, player);
 }
 
 // 渲染棋盘
-function renderBoard() {
+let boardCells = [];
+
+function createBoardCells() {
     const boardElement = document.getElementById('board');
     boardElement.innerHTML = '';
+    boardCells = [];
     
     for (let row = 0; row < ROWS; row++) {
         for (let col = 0; col < COLS; col++) {
@@ -339,7 +90,6 @@ function renderBoard() {
             cell.dataset.row = row;
             cell.dataset.col = col;
             
-            // 添加地形类
             if (row === RED_DEN.row && col === RED_DEN.col) {
                 cell.classList.add('den-red');
             } else if (row === BLUE_DEN.row && col === BLUE_DEN.col) {
@@ -352,14 +102,32 @@ function renderBoard() {
                 cell.classList.add('river');
             }
             
-            // 选中状态
+            cell.addEventListener('click', () => handleCellClick(row, col));
+            boardElement.appendChild(cell);
+            boardCells.push(cell);
+        }
+    }
+}
+
+function renderBoard() {
+    if (boardCells.length === 0) {
+        createBoardCells();
+        return;
+    }
+    
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const idx = row * COLS + col;
+            const cell = boardCells[idx];
+            
+            cell.classList.remove('selected', 'movable', 'has-enemy');
+            
             if (gameState.selectedPiece && 
                 gameState.selectedPiece.row === row && 
                 gameState.selectedPiece.col === col) {
                 cell.classList.add('selected');
             }
             
-            // 可移动标记
             const validMove = gameState.validMoves.find(m => m.row === row && m.col === col);
             if (validMove) {
                 cell.classList.add('movable');
@@ -368,11 +136,28 @@ function renderBoard() {
                 }
             }
             
-            // 渲染棋子
             const piece = gameState.board[row][col];
+            const existingPiece = cell.querySelector('.piece');
+            
             if (piece) {
+                if (existingPiece) {
+                    const isSameType = existingPiece.dataset.type === piece.type &&
+                                      existingPiece.dataset.owner === piece.owner;
+                    if (!isSameType) {
+                        existingPiece.remove();
+                    } else {
+                        existingPiece.classList.toggle('selected-piece', 
+                            gameState.selectedPiece && 
+                            gameState.selectedPiece.row === row && 
+                            gameState.selectedPiece.col === col);
+                        continue;
+                    }
+                }
+                
                 const pieceElement = document.createElement('div');
                 pieceElement.className = `piece ${piece.owner}`;
+                pieceElement.dataset.type = piece.type;
+                pieceElement.dataset.owner = piece.owner;
                 
                 if (gameState.selectedPiece && 
                     gameState.selectedPiece.row === row && 
@@ -392,11 +177,9 @@ function renderBoard() {
                 pieceElement.appendChild(badge);
                 
                 cell.appendChild(pieceElement);
+            } else if (existingPiece) {
+                existingPiece.remove();
             }
-            
-            cell.addEventListener('click', () => handleCellClick(row, col));
-            
-            boardElement.appendChild(cell);
         }
     }
 }
@@ -411,6 +194,11 @@ async function handleCellClick(row, col) {
         return;
     }
 
+    // 联机模式下，不是自己的回合不能操作
+    if (gameState.mode === 'online' && gameState.currentPlayer !== gameState.onlineSide) {
+        return;
+    }
+
     // 首次点击解锁音效
     if (window.FxSound && typeof window.FxSound.unlock === 'function') {
         try { window.FxSound.unlock(); } catch (e) { /* 静默 */ }
@@ -422,7 +210,14 @@ async function handleCellClick(row, col) {
         const validMove = gameState.validMoves.find(m => m.row === row && m.col === col);
 
         if (validMove) {
-            await movePiece(gameState.selectedPiece.row, gameState.selectedPiece.col, row, col);
+            if (gameState.mode === 'online') {
+                gameState.fxPlaying = true;
+                window.Online.sendMove(gameState.selectedPiece.row, gameState.selectedPiece.col, row, col);
+                clearSelection();
+                renderBoard();
+            } else {
+                await movePiece(gameState.selectedPiece.row, gameState.selectedPiece.col, row, col);
+            }
             return;
         }
 
@@ -500,20 +295,29 @@ async function movePiece(fromRow, fromCol, toRow, toCol) {
     }
 
     // 3. 记录日志（在覆盖目标格前）
-    if (capturedPiece) {
-        const capturedName = PIECE_TYPES[capturedPiece.type].name;
-        logMove(`${playerName}${pieceName} 吃 ${capturedName}`, movingPiece.owner);
-    } else {
-        logMove(`${playerName}${pieceName} 移动到 (${toRow + 1},${toCol + 1})`, movingPiece.owner);
-    }
+    const logText = capturedPiece
+        ? `${playerName}${pieceName} 吃 ${PIECE_TYPES[capturedPiece.type].name}`
+        : `${playerName}${pieceName} 移动到 (${toRow + 1},${toCol + 1})`;
+    logMove(logText, movingPiece.owner);
 
-    // 4. 真正更新棋盘
+    // 4. 推入走棋历史（board 快照在覆盖前抓取，供悔棋使用）
+    gameState.history.push({
+        player: movingPiece.owner,
+        from: { row: fromRow, col: fromCol },
+        to: { row: toRow, col: toCol },
+        captured: capturedPiece ? { ...capturedPiece } : null,
+        logText,
+        boardSnapshot: gameState.board.map(row => row.map(cell => cell ? { ...cell } : null))
+    });
+
+    // 5. 真正更新棋盘
     gameState.board[toRow][toCol] = movingPiece;
     gameState.board[fromRow][fromCol] = null;
 
     clearSelection();
+    updateUndoButton();
 
-    // 5. 兽穴获胜判定
+    // 6. 兽穴获胜判定
     if (isEnemyDen(toRow, toCol, movingPiece.owner)) {
         countPieces();
         renderBoard();
@@ -536,21 +340,49 @@ async function movePiece(fromRow, fromCol, toRow, toCol) {
         return;
     }
 
-    // 6. 困毙判定：对方是否已无任何合法移动
+    // 7. 换手
     const opponent = movingPiece.owner === 'red' ? 'blue' : 'red';
+    gameState.currentPlayer = opponent;
+    renderBoard();
+    updateTurnIndicator();
+
+    // 8. 困毙判定：轮到 opponent 后，若其无任何合法移动，则 movingPiece.owner 胜
+    // （斗兽棋规则：轮到某方时若该方无路可走即判负）
     if (!hasAnyValidMove(opponent)) {
-        renderBoard();
+        updateHint(`${opponent === 'red' ? '红方' : '蓝方'}棋子全部被困，无法行动！`);
         gameState.fxPlaying = false;
         showWinner(movingPiece.owner, '对方棋子全部被困，无法行动！');
         return;
     }
 
-    // 7. 换手
-    gameState.currentPlayer = opponent;
-    renderBoard();
-    updateTurnIndicator();
-    updateHint(`等待${gameState.currentPlayer === 'red' ? '红方' : '蓝方'}行动...`);
+    updateHint(`等待${opponent === 'red' ? '红方' : '蓝方'}行动...`);
     gameState.fxPlaying = false;
+
+    // PVE 模式下轮到 AI 走棋时自动触发
+    triggerAiIfNeeded();
+}
+
+/**
+ * 若游戏未结束 + 当前玩家是 AI + 特效空闲 → 延迟 700ms 模拟思考后调 movePiece
+ */
+function triggerAiIfNeeded() {
+    if (gameState.mode !== 'pve') return;
+    if (gameState.gameOver) return;
+    if (gameState.currentPlayer !== gameState.aiSide) return;
+    if (gameState.fxPlaying) return;
+    if (!window.DouShouQiAI) return;
+
+    gameState.fxPlaying = true;
+    updateHint(`AI 思考中…`);
+    setTimeout(() => {
+        const move = window.DouShouQiAI.pickMove(gameState);
+        if (!move) {
+            // AI 无路可走 → 困毙，movePiece 内部已处理；这里只是兜底
+            gameState.fxPlaying = false;
+            return;
+        }
+        movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
+    }, 700);
 }
 
 // 更新回合指示器
@@ -588,11 +420,11 @@ function showWinner(winner, reason) {
     modal.classList.add('show');
 }
 
-// 重新开始游戏
+// 重新开始游戏（保留当前 mode/aiSide）
 function restartGame() {
     const modal = document.getElementById('winModal');
     modal.classList.remove('show');
-    
+
     gameState = {
         board: [],
         currentPlayer: 'red',
@@ -601,21 +433,139 @@ function restartGame() {
         gameOver: false,
         redPieces: 8,
         bluePieces: 8,
-        fxPlaying: false
+        fxPlaying: false,
+        history: [],
+        mode: gameState.mode,
+        aiSide: gameState.aiSide
     };
-    
+
     initBoard();
     renderBoard();
     updateTurnIndicator();
-    updateHint('游戏开始！请红方选择棋子移动');
+    updateHint(gameState.mode === 'pve'
+        ? `人机模式开始！请${gameState.aiSide === 'red' ? '蓝方' : '红方'}先手`
+        : '游戏开始！请红方选择棋子移动');
     moveLog.length = 0;
     renderLog();
+    updateUndoButton();
+    updateAiButton();
+
+    // PVE 模式下，若 AI 是先手红方，立即触发
+    triggerAiIfNeeded();
 }
 
-// 暴露给 FxBridge 使用的全局工具函数（兜底逻辑）
+/**
+ * 悔棋：弹出最近一步走棋历史，恢复 board 快照、切换回走棋方、撤销日志。
+ * PVE 模式下会先跳过所有 AI 步，再 pop 一条玩家步，使悔棋后一定回到玩家回合。
+ */
+function undoMove() {
+    if (gameState.fxPlaying) {
+        updateHint('特效播放中，请稍候…');
+        return;
+    }
+    if (gameState.history.length === 0) {
+        updateHint('没有可悔棋的步数');
+        return;
+    }
+
+    // 1) 跳过顶部所有 AI 步（仅移除栈，不恢复）
+    let skippedAi = 0;
+    while (gameState.history.length > 0 &&
+           gameState.mode === 'pve' &&
+           gameState.history[gameState.history.length - 1].player === gameState.aiSide) {
+        gameState.history.pop();
+        moveLog.shift();
+        skippedAi++;
+    }
+
+    // 2) pop 玩家步并恢复其 boardSnapshot
+    if (gameState.history.length === 0) {
+        document.getElementById('winModal').classList.remove('show');
+        moveLog.length = 0;
+        renderLog();
+        clearSelection();
+        updateUndoButton();
+        updateHint('已悔棋至初始局面');
+        return;
+    }
+    const last = gameState.history.pop();
+    moveLog.shift();
+
+    gameState.board = last.boardSnapshot.map(row => row.map(cell => cell ? { ...cell } : null));
+    gameState.currentPlayer = last.player;
+    gameState.gameOver = false;
+    gameState.fxPlaying = false;
+
+    document.getElementById('winModal').classList.remove('show');
+    renderLog();
+    clearSelection();
+    countPieces();
+    renderBoard();
+    updateTurnIndicator();
+    updateUndoButton();
+
+    const total = skippedAi + 1;
+    const tip = `已悔棋 ${total} 步，${last.player === 'red' ? '红方' : '蓝方'}重新行动`;
+    if (gameState.currentPlayer !== gameState.aiSide) {
+        updateHint(tip);
+    } else {
+        // 极少见：玩家无棋可走时连退 → 落到 AI 回合
+        triggerAiIfNeeded();
+    }
+}
+
+/** 根据 history 是否为空，启用/禁用悔棋按钮 */
+function updateUndoButton() {
+    const btn = document.getElementById('btnUndo');
+    if (!btn) return;
+    btn.disabled = gameState.history.length === 0;
+}
+
+/** 同步顶部 AI 切换按钮的文案与样式 */
+function updateAiButton() {
+    const btn = document.getElementById('btnAiToggle');
+    if (!btn) return;
+    if (gameState.mode === 'pve') {
+        const ai = gameState.aiSide === 'red' ? '红' : '蓝';
+        btn.textContent = `🤖 人机对战（AI 执${ai}）`;
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '👥 双人对战';
+        btn.classList.remove('active');
+    }
+}
+
+/** 切换对战模式：PVP ↔ PVE（人机模式弹窗选色） */
+function toggleAiMode() {
+    if (gameState.mode === 'pve') {
+        // 切回 PVP：直接重新开始
+        gameState.mode = 'pvp';
+        gameState.aiSide = null;
+        restartGame();
+        return;
+    }
+    // 切到 PVE：弹窗选色
+    document.getElementById('pickSideModal').classList.add('show');
+}
+
+/** 玩家在选色弹窗里点了某色 */
+function pickSide(humanSide) {
+    document.getElementById('pickSideModal').classList.remove('show');
+    gameState.mode = 'pve';
+    gameState.aiSide = humanSide === 'red' ? 'blue' : 'red';
+    restartGame();
+}
+
+// 暴露给 FxBridge / AI 使用的全局工具
 window.isRiver = isRiver;
 window.isEnemyDen = isEnemyDen;
 window.isTrap = isTrap;
+window.PIECE_TYPES = PIECE_TYPES;
+window.RED_DEN = RED_DEN;
+window.BLUE_DEN = BLUE_DEN;
+window.ROWS = ROWS;
+window.COLS = COLS;
+window.getValidMoves = getValidMoves;
 
 /**
  * 根据 row/col 找到棋盘 DOM 格子
@@ -630,6 +580,11 @@ function getCellEl(row, col) {
 function initGame() {
     document.getElementById('btnRestart').addEventListener('click', restartGame);
     document.getElementById('btnModalRestart').addEventListener('click', restartGame);
+    document.getElementById('btnUndo').addEventListener('click', undoMove);
+    document.getElementById('btnAiToggle').addEventListener('click', toggleAiMode);
+    document.querySelectorAll('#pickSideModal .btn-pick-side').forEach(btn => {
+        btn.addEventListener('click', () => pickSide(btn.dataset.side));
+    });
 
     // 抽屉交互
     document.querySelectorAll('.drawer-tab').forEach(tab => {
@@ -657,10 +612,51 @@ function initGame() {
         if (window.FxSound) window.FxSound.setMuted(!soundToggle.checked);
     }
 
+    // 联机事件绑定
+    const onlineToggle = document.getElementById('btnOnlineToggle');
+    const createRoomBtn = document.getElementById('btnCreateRoom');
+    const joinRoomBtn = document.getElementById('btnJoinRoom');
+    const cancelOnlineBtn = document.getElementById('btnCancelOnline');
+    const chatCloseBtn = document.getElementById('chatClose');
+    const chatFabBtn = document.getElementById('chatFab');
+    const chatSendBtn = document.getElementById('chatSend');
+    const chatInputEl = document.getElementById('chatInput');
+    if (onlineToggle) onlineToggle.addEventListener('click', toggleOnlineMode);
+    if (createRoomBtn) createRoomBtn.addEventListener('click', createRoom);
+    if (joinRoomBtn) joinRoomBtn.addEventListener('click', joinRoom);
+    if (cancelOnlineBtn) cancelOnlineBtn.addEventListener('click', () => {
+        document.getElementById('onlineModal').classList.remove('show');
+        document.getElementById('roomInfo').style.display = 'none';
+    });
+    if (chatCloseBtn) chatCloseBtn.addEventListener('click', closeChatPanel);
+    if (chatFabBtn) chatFabBtn.addEventListener('click', toggleChatPanel);
+    if (chatSendBtn) chatSendBtn.addEventListener('click', sendChatMessage);
+    if (chatInputEl) chatInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendChatMessage();
+    });
+
+    // 弹窗关闭按钮（右上角叉号）
+    document.querySelectorAll('.modal-close[data-close-modal]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const modalId = btn.getAttribute('data-close-modal');
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('show');
+            // 关闭联机弹窗时重置房间信息显示
+            if (modalId === 'onlineModal') {
+                const roomInfo = document.getElementById('roomInfo');
+                if (roomInfo) roomInfo.style.display = 'none';
+            }
+        });
+    });
+
     initBoard();
     renderBoard();
     updateTurnIndicator();
     updateHint('游戏开始！请红方选择棋子移动');
+
+    // 恢复聊天未读数
+    restoreChatBadge();
 }
 
 // 切换抽屉
@@ -719,3 +715,460 @@ function renderLog() {
 }
 
 document.addEventListener('DOMContentLoaded', initGame);
+
+/* ============================================================
+   联机对战模式
+   ============================================================ */
+
+function toggleOnlineMode() {
+    if (gameState.mode === 'online') {
+        exitOnlineMode();
+        return;
+    }
+    document.getElementById('onlineModal').classList.add('show');
+}
+
+function exitOnlineMode() {
+    if (window.Online) {
+        window.Online.leaveRoom();
+    }
+    gameState.mode = 'pvp';
+    gameState.onlineSide = null;
+    updateOnlineButton();
+    closeChatPanel();
+    hideChatFab();
+    clearChatBadge();
+    restartGame();
+}
+
+function updateOnlineButton() {
+    const btn = document.getElementById('btnOnlineToggle');
+    if (!btn) return;
+    if (gameState.mode === 'online') {
+        btn.textContent = '🌐 退出联机';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🌐 联机对战';
+        btn.classList.remove('active');
+    }
+}
+
+// ========== 加载状态辅助函数 ==========
+function setButtonLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+        btn.dataset.originalText = btn.textContent;
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+        btn.textContent = '加载中...';
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        if (btn.dataset.originalText) {
+            btn.textContent = btn.dataset.originalText;
+            delete btn.dataset.originalText;
+        }
+    }
+}
+
+function showOnlineLoading(text) {
+    let loadingEl = document.getElementById('onlineLoading');
+    if (!loadingEl) {
+        loadingEl = document.createElement('div');
+        loadingEl.id = 'onlineLoading';
+        loadingEl.className = 'online-loading';
+        loadingEl.innerHTML = '<div class="loading-spinner"></div><div class="loading-text"></div>';
+        document.body.appendChild(loadingEl);
+    }
+    loadingEl.querySelector('.loading-text').textContent = text || '加载中...';
+    loadingEl.style.display = 'flex';
+}
+
+function hideOnlineLoading() {
+    const loadingEl = document.getElementById('onlineLoading');
+    if (loadingEl) loadingEl.style.display = 'none';
+}
+
+// ========== 聊天提示音 ==========
+let _audioCtx = null;
+let _chatSoundEnabled = true;
+
+function playChatSound() {
+    if (!_chatSoundEnabled) return;
+    try {
+        // 使用 Web Audio API 合成一个柔和的"叮"声，不依赖外部音频文件
+        if (!_audioCtx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            _audioCtx = new AC();
+        }
+        const ctx = _audioCtx;
+        if (ctx.state === 'suspended') {
+            // 用户未交互前 AudioContext 处于 suspended，尝试恢复
+            ctx.resume().catch(() => {});
+        }
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    } catch (e) {
+        // 静默失败
+    }
+}
+
+function createRoom() {
+    const btn = document.getElementById('btnCreateRoom');
+    setButtonLoading(btn, true);
+
+    document.getElementById('onlineModal').classList.remove('show');
+    showOnlineLoading('正在创建房间...');
+
+    window.Online.connect();
+    window.Online.setCallbacks({
+        onRoomCreated: (data) => {
+            setButtonLoading(btn, false);
+            hideOnlineLoading();
+            document.getElementById('roomInfo').style.display = 'block';
+            document.getElementById('displayRoomId').textContent = data.id;
+            updateHint(`已创建房间 ${data.id}，等待对手加入...`);
+        },
+        onPlayerJoined: (data) => {
+            document.getElementById('roomInfo').style.display = 'none';
+            startOnlineGame(data);
+        },
+        onGameStart: (data) => {
+            startOnlineGame(data);
+        },
+        onMoveResult: (data) => {
+            handleOnlineMoveResult(data);
+        },
+        onChat: (data) => {
+            addChatMessage(data);
+        },
+        onPlayerLeft: (data) => {
+            updateHint('对手已离开房间');
+            showWinner(null, '对手已离开，游戏结束');
+        },
+        onDisconnect: () => {
+            updateHint('与服务器断开连接，正在尝试重连...');
+        },
+        onReconnect: () => {
+            updateHint('已重新连接到服务器');
+        },
+        onRateLimited: (data) => {
+            setButtonLoading(btn, false);
+            hideOnlineLoading();
+            updateHint(data.message || '操作过于频繁');
+        }
+    });
+
+    setTimeout(() => {
+        window.Online.createRoom();
+    }, 500);
+
+    // 超时保护
+    setTimeout(() => {
+        setButtonLoading(btn, false);
+        hideOnlineLoading();
+    }, 5000);
+}
+
+function joinRoom() {
+    const roomId = document.getElementById('roomIdInput').value.trim();
+    if (!roomId || roomId.length !== 4) {
+        alert('请输入4位房间号');
+        return;
+    }
+    if (!/^\d{4}$/.test(roomId)) {
+        alert('房间号必须是4位数字');
+        return;
+    }
+
+    const btn = document.getElementById('btnJoinRoom');
+    setButtonLoading(btn, true);
+
+    document.getElementById('onlineModal').classList.remove('show');
+    showOnlineLoading(`正在加入房间 ${roomId}...`);
+
+    window.Online.connect();
+    window.Online.setCallbacks({
+        onRoomJoined: (data) => {
+            setButtonLoading(btn, false);
+            hideOnlineLoading();
+            document.getElementById('roomInfo').style.display = 'none';
+            if (data.playerCount === 2) {
+                startOnlineGame(data);
+            } else {
+                updateHint(`已加入房间 ${data.id}，等待对手...`);
+            }
+        },
+        onPlayerJoined: (data) => {
+            startOnlineGame(data);
+        },
+        onGameStart: (data) => {
+            startOnlineGame(data);
+        },
+        onMoveResult: (data) => {
+            handleOnlineMoveResult(data);
+        },
+        onChat: (data) => {
+            addChatMessage(data);
+        },
+        onPlayerLeft: (data) => {
+            updateHint('对手已离开房间');
+            showWinner(null, '对手已离开，游戏结束');
+        },
+        onDisconnect: () => {
+            updateHint('与服务器断开连接，正在尝试重连...');
+        },
+        onReconnect: () => {
+            updateHint('已重新连接到服务器');
+        },
+        onRateLimited: (data) => {
+            setButtonLoading(btn, false);
+            hideOnlineLoading();
+            updateHint(data.message || '操作过于频繁');
+        }
+    });
+
+    setTimeout(() => {
+        window.Online.joinRoom(roomId);
+    }, 500);
+
+    // 超时保护
+    setTimeout(() => {
+        setButtonLoading(btn, false);
+        hideOnlineLoading();
+    }, 5000);
+}
+
+function startOnlineGame(data) {
+    gameState.mode = 'online';
+    gameState.board = data.board;
+    gameState.currentPlayer = data.turn;
+    gameState.gameOver = false;
+    gameState.history = [];
+
+    const player = data.players.find(p => p.id === window.Online.getSocket()?.id);
+    gameState.onlineSide = player ? player.side : 'red';
+
+    updateOnlineButton();
+    updateHint(`联机模式开始！你执${gameState.onlineSide === 'red' ? '红方' : '蓝方'}，${gameState.currentPlayer === gameState.onlineSide ? '轮到你行动' : '等待对手行动'}`);
+
+    countPieces();
+    renderBoard();
+    updateTurnIndicator();
+    updateUndoButton();
+
+    // 加载聊天历史（重连时）
+    loadChatHistory(data.chatHistory || []);
+
+    // 显示聊天图标按钮，聊天面板默认收起（由用户点击图标展开）
+    showChatFab();
+    closeChatPanel();
+}
+
+function loadChatHistory(history) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+    container.innerHTML = '';
+    history.forEach(msg => addChatMessage(msg));
+}
+
+// ---------- 聊天面板控制 ----------
+function toggleChatPanel() {
+    const panel = document.getElementById('chatPanel');
+    if (!panel) return;
+    panel.classList.toggle('show');
+    // 打开时清空未读徽标
+    if (panel.classList.contains('show')) {
+        clearChatBadge();
+    }
+}
+
+function closeChatPanel() {
+    const panel = document.getElementById('chatPanel');
+    if (panel) panel.classList.remove('show');
+}
+
+function showChatFab() {
+    const fab = document.getElementById('chatFab');
+    if (fab) fab.style.display = 'flex';
+}
+
+function hideChatFab() {
+    const fab = document.getElementById('chatFab');
+    if (fab) fab.style.display = 'none';
+}
+
+function incrementChatBadge() {
+    const badge = document.getElementById('chatBadge');
+    if (!badge) return;
+    // 从 localStorage 读取当前未读数（防止刷新后丢失）
+    let current = 0;
+    try {
+        current = parseInt(localStorage.getItem('chatUnread') || '0', 10);
+    } catch (e) { current = 0; }
+    current += 1;
+    try {
+        localStorage.setItem('chatUnread', String(current));
+    } catch (e) {}
+    badge.textContent = current > 99 ? '99+' : String(current);
+    badge.style.display = 'block';
+    // 抖动动画
+    const fab = document.getElementById('chatFab');
+    if (fab) {
+        fab.classList.remove('shake');
+        void fab.offsetWidth; // 强制重排
+        fab.classList.add('shake');
+    }
+}
+
+function clearChatBadge() {
+    const badge = document.getElementById('chatBadge');
+    if (!badge) return;
+    try {
+        localStorage.setItem('chatUnread', '0');
+    } catch (e) {}
+    badge.textContent = '0';
+    badge.style.display = 'none';
+}
+
+// 页面加载时，从 localStorage 恢复未读数
+function restoreChatBadge() {
+    try {
+        const stored = localStorage.getItem('chatUnread');
+        if (!stored) return;
+        const count = parseInt(stored, 10);
+        if (count > 0) {
+            const badge = document.getElementById('chatBadge');
+            if (badge) {
+                badge.textContent = count > 99 ? '99+' : String(count);
+                badge.style.display = 'block';
+            }
+        }
+    } catch (e) {}
+}
+
+function handleOnlineMoveResult(data) {
+    if (!data.success) {
+        updateHint(data.error || '走棋失败');
+        gameState.fxPlaying = false;
+        return;
+    }
+
+    gameState.board = data.board;
+    gameState.currentPlayer = data.turn;
+    gameState.gameOver = !!data.winner;
+
+    if (data.captured) {
+        const capturedName = PIECE_TYPES[data.captured.type].name;
+        const capturerName = data.turn === 'red' ? '蓝方' : '红方';
+        logMove(`${capturerName}吃${capturedName}`, data.turn === 'red' ? 'blue' : 'red');
+    }
+
+    countPieces();
+    renderBoard();
+    updateTurnIndicator();
+    gameState.fxPlaying = false;
+
+    if (data.winner) {
+        showWinner(data.winner, data.winReason);
+        return;
+    }
+
+    const hint = gameState.currentPlayer === gameState.onlineSide
+        ? '轮到你行动'
+        : '等待对手行动...';
+    updateHint(hint);
+}
+
+function addChatMessage(data) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
+
+    // 判断消息来源：自己 / 对方 / 系统
+    const mySide = gameState.onlineSide;
+    const senderSide = data.playerSide;
+    const isMine = mySide && senderSide === mySide;
+    const isSystem = !senderSide;
+
+    // 如果聊天面板未打开且是对方消息，累加未读数
+    const panel = document.getElementById('chatPanel');
+    const panelOpen = panel && panel.classList.contains('show');
+    if (!isSystem && !isMine && !panelOpen) {
+        incrementChatBadge();
+        // 播放提示音（对方消息 + 面板未打开）
+        playChatSound();
+    }
+
+    const row = document.createElement('div');
+    row.className = 'chat-msg-row' + (isSystem ? ' system' : (isMine ? ' mine' : ' other'));
+
+    // 系统消息
+    if (isSystem) {
+        row.innerHTML = `<div class="chat-msg-system">${escapeHtml(data.message || '')}</div>`;
+        container.appendChild(row);
+        container.scrollTop = container.scrollHeight;
+        return;
+    }
+
+    // 头像颜色：红方-红，蓝方-蓝
+    const avatarClass = senderSide === 'red' ? 'avatar-red' : 'avatar-blue';
+    const senderName = senderSide === 'red' ? '红方' : '蓝方';
+
+    // 转义消息内容防 XSS
+    const safeMsg = escapeHtml(data.message || '');
+    const safeName = escapeHtml(data.playerName || senderName);
+    const time = formatChatTime(data.timestamp || Date.now());
+
+    row.innerHTML = `
+        <div class="chat-avatar ${avatarClass}">${senderSide === 'red' ? '🦁' : '🐯'}</div>
+        <div class="chat-bubble-wrap">
+            <div class="chat-name">${safeName}</div>
+            <div class="chat-bubble">${safeMsg}</div>
+        </div>
+        <div class="chat-time">${time}</div>
+    `;
+    container.appendChild(row);
+    container.scrollTop = container.scrollHeight;
+}
+
+function formatChatTime(ts) {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message) return;
+
+    if (window.Online) {
+        window.Online.sendChat(message);
+    }
+    input.value = '';
+}
