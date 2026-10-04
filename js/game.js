@@ -112,7 +112,6 @@ function createBoardCells() {
 function renderBoard() {
     if (boardCells.length === 0) {
         createBoardCells();
-        return;
     }
     
     for (let row = 0; row < ROWS; row++) {
@@ -389,6 +388,7 @@ function triggerAiIfNeeded() {
 function updateTurnIndicator() {
     const turnPlayer = document.getElementById('turnPlayer');
     turnPlayer.textContent = gameState.currentPlayer === 'red' ? '红方' : '蓝方';
+    turnPlayer.dataset.side = gameState.currentPlayer;
     
     const playerRed = document.getElementById('playerRed');
     const playerBlue = document.getElementById('playerBlue');
@@ -413,10 +413,12 @@ function showWinner(winner, reason) {
     const modal = document.getElementById('winModal');
     const title = document.getElementById('winTitle');
     const message = document.getElementById('winMessage');
-    
-    title.textContent = `🎉 游戏结束`;
+
+    title.textContent = `游戏结束`;
     message.textContent = `${winner === 'red' ? '红方' : '蓝方'}获胜！${reason}`;
-    
+    message.className = winner === 'red' ? 'win-red' : (winner === 'blue' ? 'win-blue' : '');
+    modal.querySelector('.modal-content').dataset.winner = winner || 'none';
+
     modal.classList.add('show');
 }
 
@@ -525,12 +527,13 @@ function updateUndoButton() {
 function updateAiButton() {
     const btn = document.getElementById('btnAiToggle');
     if (!btn) return;
+    const label = document.getElementById('aiToggleLabel');
     if (gameState.mode === 'pve') {
         const ai = gameState.aiSide === 'red' ? '红' : '蓝';
-        btn.textContent = `🤖 人机对战（AI 执${ai}）`;
+        if (label) label.textContent = `人机 · AI 执${ai}`;
         btn.classList.add('active');
     } else {
-        btn.textContent = '👥 双人对战';
+        if (label) label.textContent = '双人对战';
         btn.classList.remove('active');
     }
 }
@@ -627,6 +630,7 @@ function initGame() {
     if (cancelOnlineBtn) cancelOnlineBtn.addEventListener('click', () => {
         document.getElementById('onlineModal').classList.remove('show');
         document.getElementById('roomInfo').style.display = 'none';
+        clearRoomError();
     });
     if (chatCloseBtn) chatCloseBtn.addEventListener('click', closeChatPanel);
     if (chatFabBtn) chatFabBtn.addEventListener('click', toggleChatPanel);
@@ -706,7 +710,7 @@ function renderLog() {
     const list = document.getElementById('logList');
     if (!list) return;
     if (moveLog.length === 0) {
-        list.innerHTML = '<div class="log-entry">暂无记录</div>';
+        list.innerHTML = '<div class="log-empty">暂无对局记录</div>';
         return;
     }
     list.innerHTML = moveLog.map(e =>
@@ -725,6 +729,7 @@ function toggleOnlineMode() {
         exitOnlineMode();
         return;
     }
+    clearRoomError();
     document.getElementById('onlineModal').classList.add('show');
 }
 
@@ -744,11 +749,12 @@ function exitOnlineMode() {
 function updateOnlineButton() {
     const btn = document.getElementById('btnOnlineToggle');
     if (!btn) return;
+    const label = document.getElementById('onlineToggleLabel');
     if (gameState.mode === 'online') {
-        btn.textContent = '🌐 退出联机';
+        if (label) label.textContent = '退出联机';
         btn.classList.add('active');
     } else {
-        btn.textContent = '🌐 联机对战';
+        if (label) label.textContent = '联机对战';
         btn.classList.remove('active');
     }
 }
@@ -885,14 +891,28 @@ function createRoom() {
     }, 5000);
 }
 
+/** 联机弹窗内联错误提示（替代 alert） */
+function showRoomError(text) {
+    const err = document.getElementById('roomError');
+    if (!err) return;
+    err.textContent = text;
+    err.classList.add('show');
+}
+
+function clearRoomError() {
+    const err = document.getElementById('roomError');
+    if (err) err.classList.remove('show');
+}
+
 function joinRoom() {
+    clearRoomError();
     const roomId = document.getElementById('roomIdInput').value.trim();
     if (!roomId || roomId.length !== 4) {
-        alert('请输入4位房间号');
+        showRoomError('请输入 4 位房间号');
         return;
     }
     if (!/^\d{4}$/.test(roomId)) {
-        alert('房间号必须是4位数字');
+        showRoomError('房间号必须是 4 位数字');
         return;
     }
 

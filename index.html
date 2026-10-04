@@ -3,21 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="斗兽棋在线对弈：完整规则的 9×7 丛林棋局，支持双人、人机与联机对战。陷阱、兽穴、鼠吃象、狮虎跳河，一应俱全。">
     <title>斗兽棋 - 对战</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23b23b2e'/><rect x='8' y='8' width='84' height='84' rx='14' fill='none' stroke='%23fdf6e9' stroke-width='5'/><text x='50' y='70' font-size='52' text-anchor='middle' fill='%23fdf6e9' font-family='KaiTi,STKaiti,serif' font-weight='bold'>兽</text></svg>">
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/fx.css">
 </head>
 <body>
+    <!-- 内联 SVG 图标库 -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+        <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+        <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+        <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+        <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+        <symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></symbol>
+        <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></symbol>
+    </svg>
+
     <div class="app">
         <!-- 顶部细栏 -->
         <header class="topbar">
-            <div>
-                <span class="topbar-title">斗兽棋</span>
-                <span class="topbar-subtitle">丛林争霸 · 智慧对决</span>
+            <div class="topbar-brand">
+                <div class="topbar-seal" aria-hidden="true">兽</div>
+                <div class="topbar-titles">
+                    <span class="topbar-title">斗兽棋</span>
+                    <span class="topbar-subtitle">丛林争霸 · 智慧对决</span>
+                </div>
             </div>
             <div class="topbar-actions">
-                <button class="btn-online-toggle" id="btnOnlineToggle">🌐 联机对战</button>
-                <button class="btn-ai-toggle" id="btnAiToggle">👥 双人对战</button>
-                <a href="rules.html">📖 查看游戏规则</a>
+                <button class="btn-mode" id="btnOnlineToggle" title="与好友联机对弈">
+                    <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-globe"/></svg>
+                    <span id="onlineToggleLabel">联机对战</span>
+                </button>
+                <button class="btn-mode" id="btnAiToggle" title="切换双人 / 人机模式">
+                    <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-users"/></svg>
+                    <span id="aiToggleLabel">双人对战</span>
+                </button>
+                <a href="rules.html" title="查看游戏规则">
+                    <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-book"/></svg>
+                    <span>游戏规则</span>
+                </a>
             </div>
         </header>
 
@@ -29,17 +56,23 @@
                     <span class="player-name">红方</span>
                     <span class="player-status" id="redStatus">行动中</span>
                 </div>
-                <div class="pieces-count">剩余 <span id="redCount">8</span></div>
+                <div class="pieces-count"><span id="redCount">8</span>在阵</div>
             </div>
 
             <div class="game-status">
                 <div class="turn-indicator">
                     <span>当前回合</span>
-                    <span class="turn-player" id="turnPlayer">红方</span>
+                    <span class="turn-player" id="turnPlayer" data-side="red">红方</span>
                 </div>
                 <div class="game-status-actions">
-                    <button class="btn-undo" id="btnUndo" disabled title="悔棋（撤销上一步）">↶ 悔棋</button>
-                    <button class="btn-restart" id="btnRestart">重新开始</button>
+                    <button class="btn-undo" id="btnUndo" disabled title="悔棋（撤销上一步）">
+                        <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-undo"/></svg>
+                        <span>悔棋</span>
+                    </button>
+                    <button class="btn-restart" id="btnRestart" title="重新开始本局">
+                        <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-refresh"/></svg>
+                        <span>重新开始</span>
+                    </button>
                 </div>
             </div>
 
@@ -49,7 +82,7 @@
                     <span class="player-name">蓝方</span>
                     <span class="player-status" id="blueStatus">等待中</span>
                 </div>
-                <div class="pieces-count">剩余 <span id="blueCount">8</span></div>
+                <div class="pieces-count"><span id="blueCount">8</span>在阵</div>
             </div>
         </div>
 
@@ -61,7 +94,7 @@
 
         <!-- 底部抽屉栏 -->
         <nav class="drawer-bar">
-            <button class="drawer-tab" data-tab="rules">规则说明</button>
+            <button class="drawer-tab" data-tab="rules">规则图鉴</button>
             <button class="drawer-tab" data-tab="log">操作日志</button>
             <button class="drawer-tab" data-tab="settings">游戏设置</button>
             <button class="drawer-toggle" id="drawerToggle">展开 ↓</button>
@@ -90,7 +123,7 @@
             </div>
         </div>
         <div class="drawer-body" data-panel="log" hidden>
-            <div class="log-list" id="logList"><div class="log-entry">暂无记录</div></div>
+            <div class="log-list" id="logList"><div class="log-empty">暂无对局记录</div></div>
         </div>
         <div class="drawer-body" data-panel="settings" hidden>
             <h3>游戏设置</h3>
@@ -108,14 +141,14 @@
                 </label>
                 <span class="settings-label">音效</span>
             </div>
-            <p style="color:var(--color-text-soft);font-size:13px;margin-top:12px">点击「重新开始」可重置棋局。</p>
+            <p class="settings-tip">点击「重新开始」可重置棋局。</p>
         </div>
     </aside>
 
     <!-- 胜利弹窗 -->
     <div class="modal" id="winModal">
         <div class="modal-content">
-            <h2 id="winTitle">🎉 游戏结束</h2>
+            <h2 id="winTitle">游戏结束</h2>
             <p id="winMessage">红方获胜！</p>
             <button class="btn-restart" id="btnModalRestart">再来一局</button>
         </div>
@@ -125,7 +158,7 @@
     <div class="modal" id="pickSideModal">
         <div class="modal-content">
             <button class="modal-close" data-close-modal="pickSideModal" aria-label="关闭">×</button>
-            <h2>🤖 人机模式</h2>
+            <h2><svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bot"/></svg>人机模式</h2>
             <p>请选择你的执子颜色</p>
             <div class="pick-side-actions">
                 <button class="btn-pick-side btn-pick-red" data-side="red">
@@ -144,17 +177,19 @@
     <div class="modal" id="onlineModal">
         <div class="modal-content">
             <button class="modal-close" data-close-modal="onlineModal" aria-label="关闭">×</button>
-            <h2>🌐 联机对战</h2>
+            <h2><svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-globe"/></svg>联机对战</h2>
             <div class="online-actions">
                 <button class="btn-online-action btn-create-room" id="btnCreateRoom">创建房间</button>
                 <div class="join-room-group">
-                    <input type="text" class="room-id-input" id="roomIdInput" placeholder="输入房间号" maxlength="4" />
-                    <button class="btn-online-action btn-join-room" id="btnJoinRoom">加入房间</button>
+                    <input type="text" class="room-id-input" id="roomIdInput" placeholder="输入 4 位房间号" inputmode="numeric" maxlength="4" />
+                    <button class="btn-online-action btn-join-room" id="btnJoinRoom">加入</button>
                 </div>
             </div>
+            <div class="form-error" id="roomError" role="alert"></div>
             <div class="room-info" id="roomInfo" style="display:none;">
-                <p>房间号：<span id="displayRoomId"></span></p>
-                <p>等待对手加入...</p>
+                <p>房间已创建，把房间号告诉好友</p>
+                <p><span id="displayRoomId"></span></p>
+                <p>等待对手加入…</p>
             </div>
             <button class="btn-cancel-online" id="btnCancelOnline">取消</button>
         </div>
@@ -162,20 +197,27 @@
 
     <!-- 聊天图标按钮（浮动在右下角） -->
     <button class="chat-fab" id="chatFab" title="聊天" aria-label="打开聊天">
-        <span class="chat-fab-icon">💬</span>
+        <span class="chat-fab-icon">
+            <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chat"/></svg>
+        </span>
         <span class="chat-fab-badge" id="chatBadge" style="display:none">0</span>
     </button>
 
     <!-- 聊天面板 -->
     <div class="chat-panel" id="chatPanel">
         <div class="chat-header">
-            <span>💬 房间聊天</span>
+            <span class="chat-header-title">
+                <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chat"/></svg>
+                房间聊天
+            </span>
             <button class="chat-close" id="chatClose" title="关闭" aria-label="关闭聊天">✕</button>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-input">
-            <input type="text" id="chatInput" placeholder="输入消息..." maxlength="200" />
-            <button id="chatSend">发送</button>
+            <input type="text" id="chatInput" placeholder="输入消息…" maxlength="200" />
+            <button id="chatSend" title="发送">
+                <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-send"/></svg>
+            </button>
         </div>
     </div>
 
@@ -187,6 +229,7 @@
     <script src="js/online.js"></script>
     <!-- 吃子特效模块 -->
     <script src="js/fx/themes.js"></script>
+    <script src="js/fx/canvas-vfx.js"></script>
     <script src="js/fx/base.js"></script>
     <script src="js/fx/sound.js"></script>
     <script src="js/fx/list.js"></script>
