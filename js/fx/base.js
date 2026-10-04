@@ -37,15 +37,11 @@ const FxBase = (function () {
 
   /**
    * 通用：N 颗粒子径向散开
-   * @param {HTMLElement} layer
-   * @param {Object} theme - ANIMAL_THEMES[key]
-   * @param {Number} count - 粒子数
-   * @param {Number} radius - 散开半径
-   * @param {Number} duration - 单粒动画时长
+   * 中心取层上注入的 --fx-cx/--fx-cy（目标格中心），全屏层时不再是屏幕中心
    */
   function radialBurst(layer, theme, count = 8, radius = 60, duration = 0.6) {
-    const cx = layer.clientWidth / 2;
-    const cy = layer.clientHeight / 2;
+    const cx = parseFloat(layer.style.getPropertyValue('--fx-cx')) || layer.clientWidth / 2;
+    const cy = parseFloat(layer.style.getPropertyValue('--fx-cy')) || layer.clientHeight / 2;
     const els = [];
     for (let i = 0; i < count; i++) {
       const p = document.createElement('div');
@@ -285,44 +281,44 @@ function playCaptureSceneAt(targetCellEl, opts) {
   layer.style.setProperty('--fx-cy', cy + 'px');
   document.body.appendChild(layer);
 
-  // 攻方 SVG（强制 inline 尺寸，避免任何 CSS 失效）
-  // 关键：left/top 设到棋格中心，配合 xPercent/yPercent:-50% 让元素中心对齐 (cx, cy)
-  // （原来 left:0;top:0 + GSAP x:cx-halfW 会让元素左上角跑到 (cx-halfW, cy-halfH) ≈ 屏幕左上方，bug 根源）
+  // 攻守方棋子尺寸：按动物主题 size 分级（象大、鼠猫小），克制屏幕占用
+  const theme_ = theme || ANIMAL_THEMES[attackerAnimal] || {};
+  const atkW = Math.round(Math.max(84, Math.min(140, 104 * (theme_.size || 1))));
+  const defW = Math.round(atkW * 0.92);
+
+  // 攻方 SVG（inline 尺寸，中心对齐 (cx, cy)）
   const attacker = document.createElement('img');
   attacker.className = 'fx-piece fx-piece-attacker';
   attacker.src = `assets/images/${attackerColor}/${attackerAnimal}.svg`;
-  attacker.style.cssText = `position: fixed !important; left: ${cx}px; top: ${cy}px; width: 120px; height: 120px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); z-index: 10000; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));`;
+  attacker.style.cssText = `position: fixed !important; left: ${cx}px; top: ${cy}px; width: ${atkW}px; height: ${atkW}px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); z-index: 10000; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));`;
   layer.appendChild(attacker);
 
   // 守方 SVG
   const defender = document.createElement('img');
   defender.className = 'fx-piece fx-piece-defender';
   defender.src = `assets/images/${defenderColor}/${defenderAnimal}.svg`;
-  defender.style.cssText = `position: fixed !important; left: ${cx}px; top: ${cy}px; width: 120px; height: 120px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); z-index: 10000; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));`;
+  defender.style.cssText = `position: fixed !important; left: ${cx}px; top: ${cy}px; width: ${defW}px; height: ${defW}px; object-fit: contain; pointer-events: none; opacity: 0; transform: translate(-50%, -50%); z-index: 10000; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));`;
   layer.appendChild(defender);
 
-  // 信息条
+  // 信息条（中文动物名，锚定目标格下方）
+  const nameOf = (k) => (window.ANIMAL_THEMES && window.ANIMAL_THEMES[k] && window.ANIMAL_THEMES[k].name) || k;
   const info = document.createElement('div');
   info.className = 'fx-info';
-  info.innerHTML = `<span class="attacker">${attackerAnimal}</span> <span class="arrow">→</span> <span class="defender">${defenderAnimal}</span>`;
+  info.innerHTML = `<span class="attacker">${nameOf(attackerAnimal)}</span> <span class="arrow">→</span> <span class="defender">${nameOf(defenderAnimal)}</span>`;
   layer.appendChild(info);
 
   // 2. 用 GSAP 直接定位到 (cx, cy) 屏幕坐标
-  // 此时元素已经在 (cx, cy)，只需用 GSAP x/y 偏移动画
   const tl = gsap.timeline();
 
-  // 方向规则：
-  //   攻方是红方 → 攻方从**左侧**进入，守方从**右侧**进入
-  //   攻方是蓝方 → 攻方从**右侧**进入，守方从**左侧**进入
-  // （棋盘红方在下、 蓝方在上：红方在左下角，蓝方在右上角）
+  // 方向规则：攻方红 → 从左入，攻方蓝 → 从右入
+  // 滑入距离收紧到 ~200px（原半屏宽度太散，前 0.6s 观感空洞）
   const attackerFromLeft = attackerColor === 'red';
-  const attackerStartX = attackerFromLeft ? -window.innerWidth / 2 - 90 : window.innerWidth / 2 + 90;
-  const attackerStopX = attackerFromLeft ? -60 : 60;
-  const defenderStartX = attackerFromLeft ? window.innerWidth / 2 + 90 : -window.innerWidth / 2 - 90;
-  const defenderStopX = attackerFromLeft ? 60 : -60;
+  const attackerStartX = attackerFromLeft ? -220 : 220;
+  const attackerStopX = attackerFromLeft ? -52 : 52;
+  const defenderStartX = attackerFromLeft ? 200 : -200;
+  const defenderStopX = attackerFromLeft ? 52 : -52;
 
-  // 阶段 1：攻方从屏幕一侧滑入 (cx, cy)
-  // 元素中心已在 (cx, cy)，初始 x 设到屏幕外
+  // 阶段 1：攻方滑入
   tl.set(attacker, {
     position: 'fixed',
     x: attackerStartX,
@@ -330,11 +326,11 @@ function playCaptureSceneAt(targetCellEl, opts) {
     opacity: 1
   }, 0);
   tl.to(attacker, {
-    x: attackerStopX,    // 停在目标格一侧外
-    duration: 0.6, ease: 'power2.out'
+    x: attackerStopX,
+    duration: 0.45, ease: 'power2.out'
   }, 0);
 
-  // 阶段 2：守方从屏幕另一侧滑入
+  // 阶段 2：守方滑入
   tl.set(defender, {
     position: 'fixed',
     x: defenderStartX,
@@ -342,63 +338,69 @@ function playCaptureSceneAt(targetCellEl, opts) {
     opacity: 1
   }, 0);
   tl.to(defender, {
-    x: defenderStopX,     // 停在目标格另一侧外
-    duration: 0.6, ease: 'power2.out'
-  }, 0.15);
+    x: defenderStopX,
+    duration: 0.45, ease: 'power2.out'
+  }, 0.1);
 
-  // 阶段 3：攻方冲撞到目标格中心 + 闪白
-  // attacker/defender 已经 center 在 (cx, cy)，所以 x:0,y:0 即冲撞到中心
-  // 阶段 3：攻方冲撞到目标格中心（强化为：放大+倾斜+强光阴影 替代白色圆盘）
-  // attacker/defender 已经 center 在 (cx, cy)，所以 x:0,y:0 即冲撞到中心
-  // 用 filter:drop-shadow 红光制造"冲击"视觉，不再用白圆
+  // 阶段 3：攻方冲撞到目标格中心（放大+倾斜+红光冲击）
   tl.to(attacker, {
     x: 0, y: 0,
-    scale: 1.8,
-    rotation: 20,
-    filter: 'drop-shadow(0 0 30px rgba(255, 80, 60, 1)) drop-shadow(0 0 15px rgba(255, 200, 100, 0.9)) brightness(1.3)',
-    duration: 0.15, ease: 'power2.in'
-  }, 0.75);
+    scale: 1.65,
+    rotation: 16,
+    filter: 'drop-shadow(0 0 26px rgba(255, 80, 60, 0.95)) drop-shadow(0 0 12px rgba(255, 200, 100, 0.9)) brightness(1.25)',
+    duration: 0.14, ease: 'power2.in'
+  }, 0.56);
 
-  // 阶段 4：守方淡出（守方中心已经在 (cx, cy)，所以 x:0,y:0）
+  // 打击瞬间通用反馈：冲击波 + 火花 + 震屏 + 撞击音（CanvasVfx 参考游戏 Juice 惯例）
+  tl.call(() => {
+    const theme_ = theme || ANIMAL_THEMES[attackerAnimal] || {};
+    if (window.CanvasVfx) {
+      window.CanvasVfx.impact(cx, cy, { color: theme_.color || '#ffd76a' });
+    }
+    if (window.FxSound && typeof window.FxSound.impact === 'function') {
+      window.FxSound.impact();
+    }
+  }, [], 0.56);
+
+  // 阶段 4：守方被击溃淡出
   tl.to(defender, {
     x: 0, y: 0,
     opacity: 0, scale: 0.2, rotation: 45,
-    duration: 0.25, ease: 'power2.in'
-  }, 0.75);
+    duration: 0.22, ease: 'power2.in'
+  }, 0.56);
 
-  // 阶段 5：攻方缩小让位（让元素从中心释放不被遮挡）
-  // 0.95s 反弹到 scale 1 完成后，再快速缩小到 0.3，给元素让出中心
+  // 阶段 5：攻方反弹回位
   tl.to(attacker, {
     scale: 1,
     rotation: 0,
     filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))',
-    duration: 0.25, ease: 'back.out(2)'
-  }, 0.95);
+    duration: 0.2, ease: 'back.out(2)'
+  }, 0.74);
 
-  // 1.20s → 1.35s：反弹结束后，攻方快速缩小到 0.3（腾出中心给元素释放）
+  // 0.94s：攻方缩小让位（给元素释放腾出中心）
   tl.to(attacker, {
     scale: 0.3,
     opacity: 0.4,
-    duration: 0.15, ease: 'power2.in'
-  }, 1.2);
+    duration: 0.14, ease: 'power2.in'
+  }, 0.94);
 
-  // 阶段 6：元素释放（攻方已缩小，不再遮挡）
+  // 阶段 6：元素释放
   tl.call(() => {
-    if (typeof releaseFx === 'function') releaseFx(layer, theme || ANIMAL_THEMES[attackerAnimal]);
-  }, [], 1.25);
+    if (typeof releaseFx === 'function') releaseFx(layer, theme_ || ANIMAL_THEMES[attackerAnimal]);
+  }, [], 1.04);
 
-  // 阶段 7：攻方在元素释放完成后重新淡入 + 恢复原始大小
+  // 阶段 7：攻方淡入回位
   tl.to(attacker, {
     scale: 1,
     opacity: 1,
-    duration: 0.3, ease: 'back.out(1.7)'
-  }, 2.0);
+    duration: 0.28, ease: 'back.out(1.7)'
+  }, 1.5);
 
-  // 收尾清理（3.0s 后，确保元素全部消失）
+  // 收尾清理（释放元素寿命最长 ~1.5s，2.55s 时全部结束）
   tl.call(() => {
     [attacker, defender, info].forEach(el => el && el.remove());
     layer.remove();
-  }, [], 3.0);
+  }, [], 2.55);
 
   return tl;
 }
@@ -433,25 +435,27 @@ function playMoveFx(opts) {
     const startY = fromRect.top + fromRect.height / 2;
     const endX = toRect.left + toRect.width / 2;
     const endY = toRect.top + toRect.height / 2;
+    // ghost 尺寸跟随落点格（原写死 60px，棋盘格子 ~90px 时明显偏小）
+    const gsize = Math.round(Math.min(toRect.width, toRect.height) * 0.8);
+    const half = gsize / 2;
     // 3. ghost 位置：top/left 设到屏幕左上角，transform translate() 定位
-    // GSAP 的 fromVars/toVars 都是绝对值，不读 inline left/top
     ghost.style.position = 'fixed';
     ghost.style.left = '0';
     ghost.style.top = '0';
-    ghost.style.width = '60px';
-    ghost.style.height = '60px';
+    ghost.style.width = `${gsize}px`;
+    ghost.style.height = `${gsize}px`;
     ghost.style.zIndex = '9999';
     ghost.style.pointerEvents = 'none';
     ghost.style.transformOrigin = '50% 50%';
     document.body.appendChild(ghost);
 
-    // 4. 滑动 + 轻微弹跳：起点 (startX, startY)，终点 (endX, endY)
+    // 4. 滑动：起点 (startX, startY)，终点 (endX, endY)
     gsap.fromTo(ghost, {
-      x: startX - 30, y: startY - 30, scale: 0.5, rotation: 0, opacity: 0
+      x: startX - half, y: startY - half, scale: 0.6, rotation: 0, opacity: 0
     }, {
-      duration: 0.32,
-      x: endX - 30,
-      y: endY - 30,
+      duration: 0.3,
+      x: endX - half,
+      y: endY - half,
       scale: 1,
       rotation: 0,
       opacity: 1,
@@ -462,15 +466,15 @@ function playMoveFx(opts) {
       }
     });
 
-    // 4. 灰尘粒子
+    // 5. 灰尘粒子：在落点格内散开
     const theme = (window.ANIMAL_THEMES || {})[animal] || { color: '#aaa' };
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       const dust = document.createElement('div');
       dust.className = 'fx-move-dust';
       dust.style.background = theme.color;
       dust.style.position = 'fixed';
-      dust.style.left = `${endX + 30}px`;
-      dust.style.top = `${endY + 30}px`;
+      dust.style.left = `${endX + (Math.random() - 0.5) * toRect.width * 0.5}px`;
+      dust.style.top = `${endY + toRect.height * 0.28}px`;
       dust.style.width = '6px';
       dust.style.height = '6px';
       dust.style.borderRadius = '50%';
@@ -478,18 +482,18 @@ function playMoveFx(opts) {
       dust.style.zIndex = '9998';
       document.body.appendChild(dust);
       gsap.to(dust, {
-        x: (Math.random() - 0.5) * 40,
-        y: 20 + Math.random() * 20,
+        x: (Math.random() - 0.5) * 36,
+        y: 10 + Math.random() * 14,
         opacity: 0,
         scale: 0,
         duration: 0.5,
-        delay: 0.3 + i * 0.05,
+        delay: 0.26 + i * 0.05,
         ease: 'power2.out',
         onComplete: () => dust.remove()
       });
     }
 
-    // 5. 0.8s 后 resolve
-    setTimeout(resolve, 800);
+    // 6. 0.7s 后 resolve（滑动 0.3 + 停留消散）
+    setTimeout(resolve, 700);
   });
 }

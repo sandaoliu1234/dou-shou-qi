@@ -22,11 +22,22 @@ const FxList = (function () {
     };
   }
 
+  /** Canvas 高级特效便捷入口（未加载时静默跳过） */
+  function CV() {
+    return window.CanvasVfx || null;
+  }
+
   // ============== 元素释放函数 ==============
 
-  /** 释放象牙突刺 + 棕尘（扩散半径 130px，寿命 1.2s） */
+  /** 释放象牙突刺 + 棕尘（扩散半径 130px，寿命 1.2s）+ 碎片/尘雾冲击 */
   function releaseTusks(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.shards(cx, cy, { count: 10, color: '#d4a05a', speed: 6, size: 5, life: 0.8 });
+      cv.smoke(cx, cy + 8, { count: 4, size: 18, color: '#9a7a52', life: 1.0 });
+      cv.burst(cx, cy, { count: 10, color: '#ffe9b8', speed: 6.5, size: 6, life: 0.45 });
+    }
     // 4 根象牙：上下左右 4 个方向，扩散半径 130px
     [{ ang: -25, off: 0 }, { ang: 25, off: 0 }, { ang: -25, off: 90 }, { ang: 25, off: 90 }].forEach((cfg) => {
       const t = document.createElement('div');
@@ -78,9 +89,15 @@ const FxList = (function () {
     }
   }
 
-  /** 释放鬃毛火焰（扩散半径 130px，寿命 1.4s） */
+  /** 释放鬃毛火焰（扩散半径 130px，寿命 1.4s）+ 火焰喷泉 */
   function releaseMane(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.fountain(cx, cy + 10, { count: 16, color: ['#ffb84d', '#ff8a3d', '#ffd76a'], speed: 8.5, gravity: 0.36, duration: 0.4, size: 6 });
+      cv.burst(cx, cy, { count: 12, color: '#ff9a4d', speed: 7, size: 6, life: 0.5 });
+      cv.smoke(cx, cy, { count: 3, size: 14, color: '#6d5233', life: 1.1 });
+    }
     for (let i = 0; i < 16; i++) {
       const m = document.createElement('div');
       m.className = 'fx-mane';
@@ -95,9 +112,16 @@ const FxList = (function () {
     }
   }
 
-  /** 释放王字 + 雷电（扩散 100px，寿命 1.2s） */
+  /** 释放王字 + 雷电（扩散 100px，寿命 1.2s）+ 闪电链 + 电火花 */
   function releaseWang(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      // 3 道闪电从中心向外劈（左上/正上/右上）
+      [-0.8, -Math.PI / 2, Math.PI - 0.8].forEach(a => cv.bolt(cx, cy, { angle: a, len: 95, color: '#ffe27a', width: 3.5, life: 0.24 }));
+      cv.burst(cx, cy, { count: 14, color: '#ffe27a', speed: 8, size: 6, life: 0.45 });
+      cv.shockwave(cx, cy, { r1: 90, color: '#8b9bdd', width: 5, life: 0.4 });
+    }
     // 主王字（CSS 56×56, 字号 44）
     const w = document.createElement('div');
     w.className = 'fx-wang';
@@ -136,9 +160,18 @@ const FxList = (function () {
     F.radialBurst(layer, theme, 14, 120, 0.6);
   }
 
-  /** 释放豹纹弧线（扩散 140px，寿命 1.2s，10 条） */
+  /** 释放豹纹弧线（扩散 140px，寿命 1.2s，10 条）+ 三连新月斩 */
   function releaseLeoStripes(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      // 三道新月斩呈扇形扫过（速度感）
+      const base = -Math.PI / 2 + (Math.random() - 0.5);
+      [-0.5, 0, 0.5].forEach((off, i) => {
+        setTimeout(() => cv.slash(cx, cy, { angle: base + off, radius: 44 + i * 10, arc: Math.PI * 0.8, width: 11, life: 0.28, color: '#fff3c4' }), i * 60);
+      });
+      cv.burst(cx, cy, { count: 10, color: '#d4c04a', speed: 8.5, size: 5, shape: 'streak', life: 0.4 });
+    }
     // 10 条豹纹：10 个方向旋转 + 缩放，强化视觉冲击
     for (let i = 0; i < 10; i++) {
       const s = document.createElement('div');
@@ -155,9 +188,15 @@ const FxList = (function () {
     }
   }
 
-  /** 释放月牙獠牙（主月牙 1.6→2.0，獠牙散开 30px，寿命 1.2s） */
+  /** 释放月牙獠牙（主月牙 1.6→2.0，獠牙散开 30px，寿命 1.2s）+ 冰晶碎片 + 冷光波 */
   function releaseMoonFang(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.shards(cx, cy, { count: 12, color: '#a7c0d8', speed: 6, size: 6, gravity: 0.42, life: 0.85 });
+      cv.shockwave(cx, cy, { r1: 100, color: '#7a8fb0', width: 6, life: 0.5 });
+      cv.burst(cx, cy, { count: 8, color: '#dce8f5', speed: 5.5, size: 5, life: 0.45 });
+    }
     const m = document.createElement('div');
     m.className = 'fx-moon';
     m.style.left = `${cx}px`;
@@ -179,9 +218,15 @@ const FxList = (function () {
     });
   }
 
-  /** 释放骨爪（骨头 1.4→1.8，爪印 100px，寿命 1.3s） */
+  /** 释放骨爪（骨头 1.4→1.8，爪印 100px，寿命 1.3s）+ 冲击火花 + 扬尘 */
   function releaseBonePaw(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.burst(cx, cy, { count: 12, color: '#ffd76a', speed: 7.5, size: 6, life: 0.45 });
+      cv.smoke(cx, cy + 10, { count: 4, size: 15, color: '#a68b64', life: 0.9 });
+      cv.shockwave(cx, cy, { r1: 85, color: '#e8c98a', width: 5, life: 0.4 });
+    }
     const bone = document.createElement('div');
     bone.className = 'fx-bone';
     bone.style.left = `${cx}px`;
@@ -214,9 +259,15 @@ const FxList = (function () {
     }
   }
 
-  /** 释放胡须（10 根，寿命 1.2s） */
+  /** 释放胡须（10 根，寿命 1.2s）+ 双道细斩 + 星光点 */
   function releaseWhiskers(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.slash(cx, cy, { angle: -0.4, radius: 40, arc: Math.PI * 0.7, width: 5, life: 0.25, color: '#f5d5de' });
+      cv.slash(cx, cy, { angle: Math.PI - 0.4, radius: 46, arc: Math.PI * 0.7, width: 5, life: 0.28, color: '#f5d5de' });
+      cv.burst(cx, cy, { count: 8, color: '#e8a8b8', speed: 5.5, size: 4.5, life: 0.4 });
+    }
     // 10 根胡须：左右各 5 根，向两侧扇形散开
     for (let i = 0; i < 10; i++) {
       const w = document.createElement('div');
@@ -237,9 +288,14 @@ const FxList = (function () {
     }
   }
 
-  /** 释放长尾（旋转 1080→1440，爪印 90px，寿命 1.2s） */
+  /** 释放长尾（旋转 1080→1440，爪印 90px，寿命 1.2s）+ 烟雾 + 灰色疾风 */
   function releaseTail(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.smoke(cx, cy, { count: 4, size: 14, color: '#8f8a84', life: 1.0 });
+      cv.burst(cx, cy, { count: 8, color: '#c9c2ba', speed: 7, size: 5, shape: 'streak', life: 0.4 });
+    }
     const tail = document.createElement('div');
     tail.className = 'fx-tail';
     tail.style.background = theme.color;
@@ -276,8 +332,15 @@ const FxList = (function () {
 
   // ============== 跳河 / 陷阱 / 兽穴 / 反杀 的差异化释放 ==============
 
-  /** 跳河·光柱 */
+  /** 跳河·光柱 + 水花喷泉 + 水滴溅落 */
   function releaseRiverBeam(layer, theme) {
+    const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.fountain(cx, cy + 14, { count: 20, color: ['#7db8e8', '#a8d0f0', '#4a8ab5'], speed: 9.5, gravity: 0.55, duration: 0.45, width: 44, size: 5 });
+      cv.shockwave(cx, cy, { r1: 95, color: '#7db8e8', width: 6, life: 0.45 });
+      cv.burst(cx, cy, { count: 10, color: '#b8dcf5', speed: 6, size: 4.5, life: 0.45 });
+    }
     const w = layer.clientWidth, h = layer.clientHeight;
     for (let i = 0; i < 2; i++) {
       const l = document.createElement('div');
@@ -304,8 +367,15 @@ const FxList = (function () {
     }
   }
 
-  /** 跳河·王字光柱 */
+  /** 跳河·王字光柱 + 青色闪电 + 水花 */
   function releaseRiverWang(layer, theme) {
+    const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.bolt(cx, cy, { angle: -Math.PI / 2, len: 110, color: '#9ab5d1', width: 3.5, life: 0.26 });
+      cv.fountain(cx, cy + 12, { count: 14, color: ['#7db8e8', '#b8dcf5'], speed: 8.5, gravity: 0.5, duration: 0.35, width: 36, size: 4.5 });
+      cv.shockwave(cx, cy, { r1: 90, color: '#5b9bd5', width: 5, life: 0.45 });
+    }
     const w = layer.clientWidth, h = layer.clientHeight;
     const wang = document.createElement('div');
     wang.className = 'fx-wang';
@@ -329,9 +399,16 @@ const FxList = (function () {
     }
   }
 
-  /** 兽穴·大字弹出 */
+  /** 兽穴·大字弹出 + 金屑喷泉 + 双重冲击波 + 强震屏 */
   function releaseCrown(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.shake(0.85);
+      cv.shockwave(cx, cy, { r0: 10, r1: 190, color: '#ffd76a', width: 12, life: 0.6 });
+      cv.fountain(cx, cy + 16, { count: 26, color: ['#ffd76a', '#ffe9b8', '#e8a535'], speed: 11, gravity: 0.42, duration: 0.55, width: 60, size: 6 });
+      cv.shards(cx, cy, { count: 10, color: '#f0c75e', speed: 7, size: 5, life: 0.9 });
+    }
     const w = layer.clientWidth, h = layer.clientHeight;
     // 8 道光束
     for (let i = 0; i < 8; i++) {
@@ -364,9 +441,17 @@ const FxList = (function () {
     gsap.to(text, { scale: 0.5, opacity: 0, duration: 0.3, delay: 1.2, onComplete: () => text.remove() });
   }
 
-  /** 反杀·鼠吃象 */
+  /** 反杀·鼠吃象：X 斩 + 白闪 + 冲击波 + 强震屏 + 象牙碎片崩塌 */
   function releaseReverse(layer, theme) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      // 四道斩击呈 X 形交错
+      [0.7, Math.PI - 0.7, -0.7, Math.PI + 0.7].forEach(a => cv.slash(cx, cy, { angle: a, radius: 58, arc: Math.PI * 0.9, width: 13, life: 0.32, color: '#ffffff' }));
+      cv.shockwave(cx, cy, { r0: 8, r1: 160, color: '#ffffff', width: 10, life: 0.5 });
+      cv.shards(cx, cy, { count: 14, color: '#d4a05a', speed: 7.5, size: 6, gravity: 0.5, life: 0.95 });
+      cv.shake(0.8);
+    }
     // 1. 鼠尾缠绕（CSS 70px 默认）
     const tail = document.createElement('div');
     tail.className = 'fx-tail';
@@ -412,9 +497,15 @@ const FxList = (function () {
     F.flash(layer, 0.3);
   }
 
-  /** 陷阱·通用：身体下陷 + 特征元素 */
+  /** 陷阱·通用：身体下陷 + 特征元素 + 扬尘 */
   function releaseSink(layer, theme, opts = {}) {
     const { cx, cy } = getCenterCoordinates(layer);
+    const cv = CV();
+    if (cv) {
+      cv.smoke(cx, cy + 12, { count: 5, size: 16, color: '#a68b64', life: 1.0 });
+      // 下坠拖尾：向下的小粒子流
+      cv.fountain(cx, cy, { count: 6, color: theme.color, speed: 3.5, angle: Math.PI / 2, spread: 1.1, gravity: 0.5, duration: 0.3, size: 4, shape: 'streak' });
+    }
     // 身体下沉（用攻方颜色画一个圆代表）
     const body = document.createElement('div');
     body.style.width = '40px';

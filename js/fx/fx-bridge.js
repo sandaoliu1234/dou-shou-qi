@@ -103,9 +103,10 @@ const FxBridge = (function () {
         );
         if (!fx) { resolve(); return; }
 
-        // 调用 FxList.playFX（demo 也用这个入口）
+        // 调用 FxList.playFX（返回 GSAP timeline，thenable）
+        let result = null;
         if (window.FxList && window.FxList.playFX) {
-          window.FxList.playFX(fx, {
+          result = window.FxList.playFX(fx, {
             attackerColor: ctx.attacker.owner,
             defenderColor: ctx.defender ? ctx.defender.owner : 'red',
             defender: eventInfo.defenderAnimal,
@@ -113,8 +114,15 @@ const FxBridge = (function () {
             targetCell: ctx.toCellEl
           });
         }
-        // 等动画结束（~3.2s: 5 阶段 + 元素释放 + 攻方淡入 + 缓冲）
-        setTimeout(resolve, 3200);
+        // 跟随动画时间线结束（带兜底超时，防止 timeline 异常导致输入永久锁死）
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        if (result && typeof result.then === 'function') {
+          result.then(finish).catch(finish);
+          setTimeout(finish, 4000);
+        } else {
+          setTimeout(finish, 2600);
+        }
       } catch (e) {
         console.error('FxBridge.playForCapture:', e);
         resolve();

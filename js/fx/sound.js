@@ -158,7 +158,13 @@ const FxSound = (function () {
     }, 100);
   }
 
-  return { unlock, play, setMuted, isMuted };
+  /** 打击瞬间：低频"砰"+ 噪声脆响（配合 CanvasVfx.impact 震屏） */
+  function impact() {
+    tone(90, 0.16, { type: 'sine', vol: 0.34, decay: 0.16, slideTo: 45 });
+    noise(0.12, { filterType: 'lowpass', filterFreq: 1600, vol: 0.16 });
+  }
+
+  return { unlock, play, impact, setMuted, isMuted };
 })();
 
 // 暴露到全局
