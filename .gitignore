@@ -49,3 +49,15 @@ venv/
 
 /dogfood-output/
 /shots/
+
+# 服务端运行时状态（房间与棋局快照，由 room-manager.js 自动读写）
+# 属于运行时数据，不应进版本库：不同实例的房间列表本就该各自独立，
+# 且提交会把本地对局的玩家名/聊天记录带上去。文件缺失时服务端已能正常启动。
+server/rooms.json
+server/rooms.json.tmp
+
+# AI 协作工作记忆（开发期排错笔记）——与 /docs/ 同类，属项目内部资料
+.workbuddy/
+
+# 本地编辑器/AI 工具的忽略配置，因人而异，不共享
+.zcodeignore
