@@ -63,14 +63,29 @@
    * 42° 是"能看清立体感 + 格子仍近似正方"的折中：
    * 深度方向被 cos(42°)≈0.74 压缩，7 行仍能分辨。
    */
-  /**
-   * 相机俯视倾角。
-   * 18° 实测太躺了，格子看起来像侧视的长条，读不出棋盘结构。
-   * 42° 是"能看清立体感 + 格子仍近似正方"的折中：
-   * 深度方向被 cos(42°)≈0.74 压缩，7 行仍能分辨。
-   */
   const CAM_ANGLE = 42 * Math.PI / 180;
   const CAM_FOV = 34;                      // 透视相机视场角（度）
+
+  /* ---------- 相机摆动（拖动转视角）常量 ---------- */
+  /**
+   * 可摆动的最大方位角（±15°）。
+   * 为什么不给更大的范围：斗兽棋是"看格选子"的游戏，斜视过度会让
+   * 远处格子被近处格子遮挡、格子被压成细长条，可读性反而下降。
+   * ±15° 足够看出立体纵深，又不影响任何一格的可辨认性。
+   */
+  const CAM_SWING_MAX = 15 * Math.PI / 180;
+  /**
+   * 拖动灵敏度：每水平像素对应的方位角（弧度）。
+   * 0.004 意味着走完 ±15°（约 0.524 rad）需要约 131px 水平拖动，
+   * 手感不拖沓也不过敏（鼠标、触屏都合适）。
+   */
+  const CAM_SWING_SENSITIVITY = 0.004;
+  /**
+   * 「这是拖动而非点击」的位移判定阈值（CSS 像素）。
+   * 低于阈值 → 当作点击，走射线拾取选子；高于 → 当作摆动视角，不触发选子。
+   * 取 6px：能容忍手抖与触屏的自然偏移，又不至于把轻拖误判成点击。
+   */
+  const DRAG_THRESHOLD = 6;
   /* ---------- 材质配色（取自 css/style.css 实测值） ---------- */
   const COLORS = {
     cell:0xfff8ec,       // 普通格 rgba(255,250,238,.55) 的不透明近似
@@ -161,6 +176,25 @@
     /* ---- 交互 ---- */
     let cellClickCb = null;
     let boundPointerHandler = null;
+
+    /* ---- 相机摆动 ---- */
+    /** 当前方位角偏移（弧度）。0 = 正前方，正值向一侧转，钳制在 ±CAM_SWING_MAX */
+    let camAzimuth = 0;
+    /**
+     * 相机到棋盘中心的距离。由 updateCameraFrustum 依容器尺寸算出，
+     * 存成状态是因为「拖动摆角」时要复用它重算相机位置，
+     * 不能每次都重跑整段视锥计算。
+     */
+    let camDist = 0;
+    /**
+     * 拖动会话状态；null 表示当前没有按下。
+     * { pointerId, startX, startY, startAz, moved }
+     * 用 pointerId 匹配是因为触屏上可能有多指，只认第一个按下的手指。
+     */
+    let dragState = null;
+    /** 拖动事件监听引用，unmount 时要逐个解绑 */
+    let boundMoveHandler = null;
+    let boundUpHandler = null;
     /**
      * ready 之前收到的 render 请求暂存在这里。
      * mount() 同步返回但场景异步搭建，调用方随后的 render() 会被 !ready 挡住；
@@ -212,6 +246,31 @@
     }
 
     /**
+     * 按当前「距离 + 俯仰角 + 方位角」摆放相机
+     *
+     * 抽成独立函数的原因：距离只在容器尺寸变化时重算，
+     * 而方位角在拖动时每帧都变。拖动只需要重摆姿势，不必重跑整段视锥计算。
+     *
+     * 相机在球面上：俯仰角固定 CAM_ANGLE，方位角 = camAzimuth（可拖动）
+     *      水平半径 r = dist · cos(俯仰)
+     *      x = sin(方位) · r ,  y = dist · sin(俯仰) ,  z = cos(方位) · r
+     */
+    function applyCameraPose() {
+      if (!camera || !camDist) return;
+      const r = camDist * Math.cos(CAM_ANGLE);
+      camera.position.set(
+        Math.sin(camAzimuth) * r,
+        camDist * Math.sin(CAM_ANGLE),
+        Math.cos(camAzimuth) * r
+      );
+      // 始终看向棋盘中心，摆动时棋盘保持居中不漂移
+      camera.lookAt(0, 0, 0);
+      // 立即刷新世界矩阵：getCellScreenPos 与射线拾取都依赖它，
+      // 若等到渲染时才更新，拖动后的第一帧坐标会用到旧矩阵。
+      camera.updateMatrixWorld();
+    }
+
+    /**
      * 更新透视相机的位置与视锥
      *
      * 思路：按棋盘在相机空间里需要的半宽/半高，反算「能装下棋盘」的
@@ -226,18 +285,27 @@
       const aspect = w / h;
 
       // 棋盘在相机空间里的投影范围（倾角下深度被 cos 压缩）
-      const halfW = (Core.COLS * CELL) / 2 + 0.6;
+      //
+      // 半宽按**摆动到最大角度时**的最坏情况算：
+      // 棋盘 9 宽 × 7 深绕 Y 轴转 ±15° 后，投影包围盒宽度
+      //   = COLS·cos(15°) + ROWS·sin(15°) ≈ 10.51，比正前方的 9 宽了 17%。
+      // 若只按正前方算，摆到最大角时棋盘两侧会被裁掉。
+      //
+      // 这样做的代价实测为零：当前容器宽高比 ~1.97 时受限项是**高度**
+      // （halfHD/tanHalf 主导），宽度本就有富余，按最坏情况放大半宽
+      // 算出的距离与按正前方算完全相同。而窄屏（手机）下它正好防住裁切。
+      const azMax = Math.abs(CAM_SWING_MAX);
+      const halfW = (Core.COLS * Math.cos(azMax) + Core.ROWS * Math.sin(azMax)) / 2 + 0.6;
       const halfHD = (Core.ROWS * CELL) * Math.cos(CAM_ANGLE) / 2 + 0.7;
 
       const tanHalf = Math.tan(CAM_FOV * Math.PI / 360);
-      const dist = Math.max(
+      camDist = Math.max(
         halfW / (tanHalf * aspect),
         halfHD / tanHalf
       ) * 1.12;
 
       camera.aspect = aspect;
-      camera.position.set(0, dist * Math.sin(CAM_ANGLE), dist * Math.cos(CAM_ANGLE));
-      camera.lookAt(0, 0, 0);
+      applyCameraPose();
       camera.updateProjectionMatrix();
     }
 
@@ -582,11 +650,26 @@
 
     /**
      * 绑定事件（仅在 unmount 时解绑一次）
+     *
+     * 指针事件分三件：down 只记录起点，move 决定是拖动还是点击，up 结算。
+     * 不能像以前那样在 down 里直接拾取——加了摆动之后，"按下"既可能是
+     * 选子、也可能是开始拖视角，必须等抬起时按位移量区分。
      */
     function bindEvents() {
       if (!canvasEl) return;
       boundPointerHandler = (e) => handlePointerDown(e);
+      boundMoveHandler = (e) => handlePointerMove(e);
+      boundUpHandler = (e) => handlePointerUp(e);
       canvasEl.addEventListener('pointerdown', boundPointerHandler);
+      canvasEl.addEventListener('pointermove', boundMoveHandler);
+      // up / cancel 都绑在 window 上：指针可能在画布外抬起
+      // （拖到棋盘外松手），只绑 canvas 会漏掉这次抬起，
+      // dragState 卡住不释放，之后所有点击都被当成拖动。
+      window.addEventListener('pointerup', boundUpHandler);
+      window.addEventListener('pointercancel', boundUpHandler);
+
+      // 拖动时禁止浏览器把水平滑动解释成"后退/前进"手势（触屏）
+      canvasEl.style.touchAction = 'none';
 
       // ResizeObserver 比 window.resize 更准：能捕捉到容器尺寸变化
       // （比如侧栏展开导致 board-area 变窄），而不只是窗口变化
@@ -610,10 +693,87 @@
     }
 
     /**
-     * 处理点击 →射线拾取 → 上报 row/col
+     * 指针按下：只记录起点，不下结论
+     *
+     * 这次按下究竟是"选子"还是"拖视角"，要等 pointermove 的位移量才知道，
+     * 所以这里仅建立拖动会话。
+     *
      * @param {PointerEvent} e
      */
     function handlePointerDown(e) {
+      if (!ready || disposed) return;
+      // 只认主键/触摸，忽略右键与中键（避免右键菜单/滚轮按下误触发）
+      if (e.button !== undefined && e.button !== 0) return;
+      // 已有会话时忽略后续指针（多指触屏只认第一根手指）
+      if (dragState) return;
+
+      dragState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startAz: camAzimuth,
+        moved: false
+      };
+
+      // 拖动会与剧场的镜头震动抢 camera.position 的写权。
+      // 按下即杀掉震动的补间，让摆动独占相机位置。
+      if (window.gsap && camera) window.gsap.killTweensOf(camera.position);
+    }
+
+    /**
+     * 指针移动：超过阈值就进入"摆视角"模式
+     *
+     * 只有"已被判定为拖动"之后才真的转动相机。
+     * 一旦转过，本次交互就锁定为拖动，抬起时不再触发选子。
+     *
+     * @param {PointerEvent} e
+     */
+    function handlePointerMove(e) {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      if (disposed || !camera) return;
+
+      const dx = e.clientX - dragState.startX;
+      const dy = e.clientY - dragState.startY;
+
+      // 首次越过阈值 → 正式进入拖动模式（并把当前位移一次性吃掉）
+      if (!dragState.moved) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        dragState.moved = true;
+      }
+
+      // 方位角 = 起始角 + 水平位移 × 灵敏度，钳制在 ±CAM_SWING_MAX
+      // 注意用"起始角 + 总位移"而不是"累加每帧位移"：
+      // 后者在钳制时会丢信息，反向拖回来手感断裂（像被卡住）。
+      const next = dragState.startAz + dx * CAM_SWING_SENSITIVITY;
+      camAzimuth = Math.max(-CAM_SWING_MAX, Math.min(CAM_SWING_MAX, next));
+      applyCameraPose();
+    }
+
+    /**
+     * 指针抬起：结算——是拖动就结束摆动，不是就按点击走射线拾取
+     *
+     * @param {PointerEvent} e
+     */
+    function handlePointerUp(e) {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      const wasDrag = dragState.moved;
+      dragState = null;
+      // 拖动结束：不选子。语义上"我在转视角"，不该顺带选中一个棋子。
+      if (wasDrag) return;
+      // 未拖动 → 当作点击，执行射线拾取
+      pickAt(e);
+    }
+
+    /**
+     * 射线拾取：把屏幕坐标换算成格子行列并上报
+     *
+     * 命中测试对象是覆盖整盘的不可见平面，而不是逐格几何体——
+     * 平面的求交是纯数学计算，不受"格子是否被棋子遮挡"
+     * "材质是否 transparent""高亮环是否叠加"影响，稳定且更快。
+     *
+     * @param {PointerEvent} e
+     */
+    function pickAt(e) {
       if (!ready || !camera || !pickPlane || !cellClickCb) return;
       const THREE = window.THREE;
       if (!THREE) return;
@@ -623,7 +783,6 @@
       const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
 
-      // 用 Raycaster 对不可见平面求交
       const ray = new THREE.Raycaster();
       ray.setFromCamera({ x: ndcX, y: ndcY }, camera);
       const hits = ray.intersectObject(pickPlane, false);
@@ -867,7 +1026,12 @@
         const baseY = slot.baseY || CELL_H / 2;
         const pos = slot.root.position;
         window.gsap.killTweensOf(pos);
-        pos.y = baseY;
+        // 【关键】把新对象搬回**来源格**再补间。
+        // setPiece 是按当前局面建的，这个 root 一出生就站在目标格上；
+        // 若直接 to(x: to.x, z: to.z)，就是"从目标格走到目标格"的原地补间，
+        // 视觉上等于瞬移（只剩一个原地弹跳）。
+        // 先 set 到 from，补间到 to，才真的有"跳过去"的过程。
+        pos.set(from.x, baseY, from.z);
         const tl = window.gsap.timeline();
         tl.to(pos, { x: to.x, z: to.z, duration: 0.38, ease: 'power1.inOut' }, 0);
         tl.to(pos, { y: baseY + 0.42, duration: 0.19, ease: 'power2.out' }, 0);
@@ -1876,6 +2040,21 @@
           canvasEl.removeEventListener('pointerdown', boundPointerHandler);
           boundPointerHandler = null;
         }
+        if (canvasEl && boundMoveHandler) {
+          canvasEl.removeEventListener('pointermove', boundMoveHandler);
+          boundMoveHandler = null;
+        }
+        // up / cancel 绑在 window 上，这里要成对解绑，否则切回 2D 后
+        // 旧的 up 处理器仍会跑（虽然 disposed 守卫会挡住，但留着是泄漏）
+        if (boundUpHandler) {
+          window.removeEventListener('pointerup', boundUpHandler);
+          window.removeEventListener('pointercancel', boundUpHandler);
+          boundUpHandler = null;
+        }
+        // 相机复位：下次 mount 时相机是新对象，但保持语义干净
+        camAzimuth = 0;
+        camDist = 0;
+        dragState = null;
         if (resizeObserver) {
           resizeObserver.disconnect();
           resizeObserver = null;
@@ -2119,7 +2298,11 @@
         get pieceSlots() { return pieceSlots; },
         get renderer() { return renderer; },
         get ready() { return ready; },
-        get failed() { return failed; }
+        get failed() { return failed; },
+        /** 当前相机方位角（弧度），0 = 正前方；用于验证拖动摆动 */
+        get camAzimuth() { return camAzimuth; },
+        /** 相机到棋盘中心的距离，用于验证视锥自适应 */
+        get camDist() { return camDist; }
       }
     };
     })();
