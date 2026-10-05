@@ -588,7 +588,9 @@ const FxList = (function () {
   /**
    * 播放单个 FX（main.js 调用）
    * @param {Object} fx FX_FACTORIES 中一项
-   * @param {Object} opts 覆盖选项 { attackerColor, defenderColor, soundOn }
+   * @param {Object} opts 覆盖选项 { attackerColor, defenderColor, soundOn, targetPos }
+   *   targetPos 为目标格的视口坐标矩形 { x, y, width, height }（viewport CSS 像素），
+   *   缺省为 null → playCaptureSceneAt 回退到屏幕中心
    */
   function playFX(fx, opts = {}) {
     const attackerColor = opts.attackerColor || 'blue';
@@ -606,9 +608,10 @@ const FxList = (function () {
     if (opts.soundOn !== false) {
       FxSound.play(fx.animal, fx.scene);
     }
-    // 目标格：默认演示页 #fxCell，游戏可指定棋盘格
-    const targetCell = opts.targetCell || document.getElementById('fxCell');
-    return playCaptureSceneAt(targetCell, {
+    // 目标格锚点：直接接收渲染器给的视口坐标矩形（不再查#fxCell —— 该演示用元素
+    // 早已不存在，留着只是一条永远走null 的死分支），缺省 null → 屏幕中心
+    const targetPos = opts.targetPos || null;
+    return playCaptureSceneAt(targetPos, {
       attackerAnimal: fx.animal,
       defenderAnimal: defender,
       attackerColor, defenderColor,

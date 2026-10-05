@@ -11,7 +11,10 @@ const {
 } = window.GameCore;
 const SETTINGS_KEY = 'doushouqi-settings';
 const settings = (function () {
-    const defaults = { fxEnabled: true, soundEnabled: true };
+    // renderMode: '2d' | '3d' —— 渲染后端选择。
+    // 存在 settings 而非 gameState 里：gameState 是棋局唯一真相源，
+    // 不应被渲染偏好污染。gameState 会在 restartGame 时整体替换。
+    const defaults = { fxEnabled: true, soundEnabled: true, renderMode: '2d' };
     try {
         const raw = localStorage.getItem(SETTINGS_KEY);
         if (raw) return Object.assign({}, defaults, JSON.parse(raw));
@@ -75,112 +78,95 @@ function hasAnyValidMove(player) {
     return gcHasAnyValidMove(gameState.board, player);
 }
 
-// 渲染棋盘
-let boardCells = [];
+// ============================================================
+// 渲染器接入层
+// ------------------------------------------------------------
+// 原本棋盘的 DOM 构建（createBoardCells）与全量重绘（renderBoard）直接写在这里，
+// 与游戏逻辑、特效层纠缠在一起。现改为面向 renderer.js 契约编程：
+// game.js 只负责「把 gameState 交给渲染器」和「把渲染器给的坐标喂给特效层」，
+// 至于画面是 DOM 还是将来的 WebGL，由渲染器自己决定。
+//
+// 契约详见 js/render/renderer.js 顶部的完整说明。
+// ============================================================
 
-function createBoardCells() {
-    const boardElement = document.getElementById('board');
-    boardElement.innerHTML = '';
-    boardCells = [];
-    
-    for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.dataset.row = row;
-            cell.dataset.col = col;
-            
-            if (row === RED_DEN.row && col === RED_DEN.col) {
-                cell.classList.add('den-red');
-            } else if (row === BLUE_DEN.row && col === BLUE_DEN.col) {
-                cell.classList.add('den-blue');
-            } else if (RED_TRAPS.some(t => t.row === row && t.col === col)) {
-                cell.classList.add('trap-red');
-            } else if (BLUE_TRAPS.some(t => t.row === row && t.col === col)) {
-                cell.classList.add('trap-blue');
-            } else if (isRiver(row, col)) {
-                cell.classList.add('river');
-            }
-            
-            cell.addEventListener('click', () => handleCellClick(row, col));
-            boardElement.appendChild(cell);
-            boardCells.push(cell);
-        }
+/** 当前活跃的渲染器实例（2D 或 3D），null 表示尚未挂载 */
+let activeRenderer = null;
+
+/**
+ * 挂载指定模式的渲染器，并完成首次渲染
+ * @param {string} mode '2d' | '3d'
+ * @returns {boolean} 是否挂载成功
+ */
+function mountRenderer(mode) {
+    if (!window.Renderer) {
+        console.error('[render] Renderer 未加载，js/render/renderer.js 缺失');
+        return false;
+    }
+    const factory = window.Renderer.get(mode);
+    if (!factory) {
+        console.error(`[render] 渲染器 "${mode}" 未注册`);
+        return false;
+    }
+
+    // 切模式前先卸载旧的，避免旧实例的 DOM 残留
+    if (activeRenderer) {
+        activeRenderer.unmount();
+        activeRenderer = null;
+    }
+
+    const r = factory();
+    // 容器：3D 用独立的 #board3d；2D 渲染器内部自己取 #board
+    const container = document.getElementById(mode === '3d' ? 'board3d' : 'board-area');
+    r.mount(container);
+
+    // 注册格子点击：2D 由渲染器内部转交 DOM click，3D 将用射线拾取回调同一函数。
+    // 游戏层不关心点击是怎么检测出来的。
+    r.onCellClick(handleCellClick);
+
+    activeRenderer = r;
+
+    // 首次全量渲染。传 gameState 本体——渲染器契约要求不缓存引用，
+    // 每次 render 都重新读参数，所以 restartGame 整体替换 gameState 也不受影响。
+    r.render(gameState);
+
+    // body class 驱动 CSS 显隐
+    document.body.classList.toggle('render-2d', mode === '2d');
+    document.body.classList.toggle('render-3d', mode === '3d');
+    return true;
+}
+
+/**
+ * 切换渲染模式（2D ⇄ 3D）
+ *
+ * 棋局状态完全保留：gameState 从未被渲染器持有（契约明令禁止缓存引用），
+ * 所以新渲染器 mount 后 render(gameState) 就能重建出当前局面。
+ * 这正是「渲染器可插拔」的核心收益。
+ */
+function toggleRenderMode() {
+    const next = settings.renderMode === '2d' ? '3d' : '2d';
+    if (mountRenderer(next)) {
+        settings.renderMode = next;
+        saveSettings();
+        updateRenderModeButton();
     }
 }
 
+/** 更新切换按钮上的文字，反映当前模式 */
+function updateRenderModeButton() {
+    const btn = document.getElementById('btnRenderMode');
+    if (!btn) return;
+    const is3d = settings.renderMode === '3d';
+    const label = btn.querySelector('.mode-label');
+    if (label) label.textContent = is3d ? '3D' : '2D';
+    btn.setAttribute('title', is3d ? '当前：3D 模式，点击切回 2D' : '当前：2D 模式，点击切换到 3D');
+}
+
+/**
+ * 渲染棋盘 —— 现在只是把状态转交给当前渲染器。
+ * 保留这个函数名是有意的：它有 11 处调用点，语义也没变（全量重绘）。
+ */
 function renderBoard() {
-    if (boardCells.length === 0) {
-        createBoardCells();
-    }
-    
-    for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-            const idx = row * COLS + col;
-            const cell = boardCells[idx];
-            
-            cell.classList.remove('selected', 'movable', 'has-enemy');
-            
-            if (gameState.selectedPiece && 
-                gameState.selectedPiece.row === row && 
-                gameState.selectedPiece.col === col) {
-                cell.classList.add('selected');
-            }
-            
-            const validMove = gameState.validMoves.find(m => m.row === row && m.col === col);
-            if (validMove) {
-                cell.classList.add('movable');
-                if (validMove.capture) {
-                    cell.classList.add('has-enemy');
-                }
-            }
-            
-            const piece = gameState.board[row][col];
-            const existingPiece = cell.querySelector('.piece');
-            
-            if (piece) {
-                if (existingPiece) {
-                    const isSameType = existingPiece.dataset.type === piece.type &&
-                                      existingPiece.dataset.owner === piece.owner;
-                    if (!isSameType) {
-                        existingPiece.remove();
-                    } else {
-                        existingPiece.classList.toggle('selected-piece', 
-                            gameState.selectedPiece && 
-                            gameState.selectedPiece.row === row && 
-                            gameState.selectedPiece.col === col);
-                        continue;
-                    }
-                }
-                
-                const pieceElement = document.createElement('div');
-                pieceElement.className = `piece ${piece.owner}`;
-                pieceElement.dataset.type = piece.type;
-                pieceElement.dataset.owner = piece.owner;
-                
-                if (gameState.selectedPiece && 
-                    gameState.selectedPiece.row === row && 
-                    gameState.selectedPiece.col === col) {
-                    pieceElement.classList.add('selected-piece');
-                }
-                
-                const pieceInfo = PIECE_TYPES[piece.type];
-                const img = document.createElement('img');
-                img.src = `assets/images/${piece.owner}/${pieceInfo.image}`;
-                img.alt = pieceInfo.name;
-                pieceElement.appendChild(img);
-                
-                const badge = document.createElement('div');
-                badge.className = 'level-badge';
-                badge.textContent = pieceInfo.level;
-                pieceElement.appendChild(badge);
-                
-                cell.appendChild(pieceElement);
-            } else if (existingPiece) {
-                existingPiece.remove();
-            }
-        }
-    }
+    if (activeRenderer) activeRenderer.render(gameState);
 }
 
 // 处理格子点击
@@ -283,13 +269,20 @@ async function movePiece(fromRow, fromCol, toRow, toCol) {
         : { category: '移动', scene: 'move', animal: 'dog', defenderAnimal: null };
 
     // 2. 播放特效
-    const fromCellEl = getCellEl(fromRow, fromCol);
-    const toCellEl = getCellEl(toRow, toCol);
+    // 特效层不再接收 DOM 元素，改为接收「视口坐标矩形 + 资产描述」。
+    // 2D 模式下由 renderer2d 实测格子矩形，3D 模式下由渲染器投影得出，
+    // 特效层代码在两种模式下完全相同。
+    const fromPos = activeRenderer ? activeRenderer.getCellScreenPos(fromRow, fromCol) : null;
+    const toPos = activeRenderer ? activeRenderer.getCellScreenPos(toRow, toCol) : null;
+    const asset = activeRenderer ? activeRenderer.getPieceAsset(movingPiece) : null;
     if (window.FxBridge && window.FxBridge.playFor) {
         await window.FxBridge.playFor(eventInfo, {
-            fromCellEl, toCellEl,
+            fromPos, toPos, asset,
             attacker: movingPiece,
-            defender: capturedPiece
+            defender: capturedPiece,
+            // 3D 原生攻击特效需要：棋盘行列（渲染器算世界坐标）+ 渲染器实例
+            fromRow, fromCol, toRow, toCol,
+            renderer: activeRenderer
         }, settings);
     }
 
@@ -570,17 +563,20 @@ window.ROWS = ROWS;
 window.COLS = COLS;
 window.getValidMoves = getValidMoves;
 
-/**
- * 根据 row/col 找到棋盘 DOM 格子
- */
-function getCellEl(row, col) {
-    const board = document.getElementById('board');
-    if (!board) return null;
-    return board.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-}
+// 注：原getCellEl(row, col) 已移除。
+// 它返回的是 DOM 元素，把渲染层细节泄漏给了特效层，是这次抽象要消除的耦合。
+// 2D 渲染器 js/render/renderer2d.js 内部有一份自己的等价实现；
+// 游戏层若需要某格位置，改用 activeRenderer.getCellScreenPos(row, col)。
 
 // 初始化游戏
 function initGame() {
+    // 渲染模式切换按钮（先绑，mountRenderer 失败也不影响按钮可用）
+    const btnRenderMode = document.getElementById('btnRenderMode');
+    if (btnRenderMode) {
+        btnRenderMode.addEventListener('click', toggleRenderMode);
+    }
+    updateRenderModeButton();
+
     document.getElementById('btnRestart').addEventListener('click', restartGame);
     document.getElementById('btnModalRestart').addEventListener('click', restartGame);
     document.getElementById('btnUndo').addEventListener('click', undoMove);
@@ -655,6 +651,12 @@ function initGame() {
     });
 
     initBoard();
+
+    // 挂载渲染器。必须放在 initBoard() 之后——
+    // 渲染器的 render() 会读 state.board[row][col]，此时 board 必须已初始化，
+    // 否则会读到 undefined 抛错。mountRenderer 内部会做首次 render。
+    mountRenderer(settings.renderMode === '3d' ? '3d' : '2d');
+
     renderBoard();
     updateTurnIndicator();
     updateHint('游戏开始！请红方选择棋子移动');

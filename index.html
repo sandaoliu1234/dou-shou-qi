@@ -8,6 +8,8 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23b23b2e'/><rect x='8' y='8' width='84' height='84' rx='14' fill='none' stroke='%23fdf6e9' stroke-width='5'/><text x='50' y='70' font-size='52' text-anchor='middle' fill='%23fdf6e9' font-family='KaiTi,STKaiti,serif' font-weight='bold'>兽</text></svg>">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/fx.css">
+    <!-- 渲染模式切换样式（只含 3D 模式所需规则，不改动上面两份） -->
+    <link rel="stylesheet" href="css/render.css">
 </head>
 <body>
     <!-- 内联 SVG 图标库 -->
@@ -65,6 +67,9 @@
                     <span class="turn-player" id="turnPlayer" data-side="red">红方</span>
                 </div>
                 <div class="game-status-actions">
+                    <button class="render-mode-toggle" id="btnRenderMode" title="切换 2D / 3D 渲染">
+                        <span>视图</span><span class="mode-label">2D</span>
+                    </button>
                     <button class="btn-undo" id="btnUndo" disabled title="悔棋（撤销上一步）">
                         <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-undo"/></svg>
                         <span>悔棋</span>
@@ -89,7 +94,11 @@
         <!-- 中央棋盘区 -->
         <main class="board-area">
             <div class="action-hint" id="actionHint">游戏开始！请红方选择棋子移动</div>
+            <!-- 2D 棋盘：DOM 格子 + SVG 棋子。body.render-3d 时被 CSS 隐藏 -->
             <div class="board-frame" id="board"></div>
+            <!-- 3D 容器：与 #board 平级，不能放进 #board 里面——
+                 因为 2D 渲染器建格子时会执行 board.innerHTML = '' 清空它 -->
+            <div id="board3d"></div>
         </main>
 
         <!-- 底部抽屉栏 -->
@@ -234,5 +243,22 @@
     <script src="js/fx/sound.js"></script>
     <script src="js/fx/list.js"></script>
     <script src="js/fx/fx-bridge.js"></script>
+    <!-- 渲染器层：契约 → 2D 渲染器 → 贴图管线 → 真 3D 渲染器。
+         必须在 game-core.js 之后（渲染器要从 window.GameCore 取规则数据）。
+         顺序说明：asset-texture.js 只是挂工具函数，不必早于 renderer3d.js
+         （后者有自建光栅化兜底），但早于它更清晰。 -->
+    <script src="js/render/renderer.js"></script>
+    <script src="js/render/renderer2d.js"></script>
+    <script src="js/render/piece-svg-size.js"></script>
+    <script src="js/render/asset-texture.js"></script>
+    <script src="js/render/animals3d.js"></script>
+    <script src="js/render/cinematics/tiger.js"></script>
+    <script src="js/render/cinematics/lion.js"></script>
+    <script src="js/render/cinematics/elephant.js"></script>
+    <script src="js/render/cinematics/leopard.js"></script>
+    <script src="js/render/cinematics/wolf.js"></script>
+    <script src="js/render/cinematics/dog.js"></script>
+    <script src="js/render/cinematics/cat.js"></script>
+    <script src="js/render/renderer3d.js"></script>
 </body>
 </html>

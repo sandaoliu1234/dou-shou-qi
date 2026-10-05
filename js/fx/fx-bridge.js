@@ -76,7 +76,9 @@ const FxBridge = (function () {
   /**
    * 统一播放入口
    * @param {Object} eventInfo - categorizeMove 的返回值
-   * @param {Object} ctx - { fromCellEl, toCellEl, attacker, defender }
+   * @param {Object} ctx - { fromPos, toPos, asset, attacker, defender }
+   *   fromPos / toPos 为视口坐标矩形 { x, y, width, height }（viewport CSS 像素，
+   *   语义等同 getBoundingClientRect()），由渲染器提供，桥接层只做透传
    * @param {Object} settings - { fxEnabled, soundEnabled }
    * @returns {Promise}
    */
@@ -92,10 +94,45 @@ const FxBridge = (function () {
 
   /**
    * 吃子播放
+   *
+   * 3D 模式：交给渲染器的原生 playAttack3D（场景内冲锋/击倒/碎屑/逐动物签名），
+   * 不再播放 2D 卡片覆盖层（贴图卡片飘在 3D 棋盘上风格割裂）。
+   * 2D 模式：走 FxList.playFX → playCaptureSceneAt 的 5 阶段覆盖层。
    */
   function playForCapture(ctx, eventInfo, settings) {
     return new Promise((resolve) => {
       try {
+        // ---- 3D 原生路径 ----
+        const r = ctx.renderer;
+        if (document.body.classList.contains('render-3d')
+            && r && typeof r.playAttack3D === 'function') {
+          // 音效仍由桥接层负责（动物音色 + 场景叠加）
+          if (settings && settings.soundEnabled !== false && window.FxSound) {
+            window.FxSound.play(eventInfo.animal, eventInfo.scene);
+          }
+          let done = false;
+          const finish = () => { if (!done) { done = true; resolve(); } };
+          try {
+            const p = r.playAttack3D(eventInfo, {
+              fromRow: ctx.fromRow, fromCol: ctx.fromCol,
+              toRow: ctx.toRow, toCol: ctx.toCol,
+              attacker: ctx.attacker,
+              defender: ctx.defender
+            });
+            if (p && typeof p.then === 'function') {
+              p.then(finish).catch(finish);
+              setTimeout(finish, 6000);   // 兜底：动画异常也不能锁死输入
+            } else {
+              finish();
+            }
+          } catch (e) {
+            console.error('FxBridge.playForCapture(3D):', e);
+            finish();
+          }
+          return;
+        }
+
+        // ---- 2D 覆盖层路径（原实现） ----
         // 找到对应 factory
         const factoryList = (window.FxList && window.FxList.FX_FACTORIES) || [];
         const fx = factoryList.find(
@@ -104,6 +141,7 @@ const FxBridge = (function () {
         if (!fx) { resolve(); return; }
 
         // 调用 FxList.playFX（返回 GSAP timeline，thenable）
+        // 传参链：ctx.toPos（视口坐标矩形）→ opts.targetPos → playCaptureSceneAt 的 targetPos
         let result = null;
         if (window.FxList && window.FxList.playFX) {
           result = window.FxList.playFX(fx, {
@@ -111,7 +149,7 @@ const FxBridge = (function () {
             defenderColor: ctx.defender ? ctx.defender.owner : 'red',
             defender: eventInfo.defenderAnimal,
             soundOn: settings.soundEnabled !== false,
-            targetCell: ctx.toCellEl
+            targetPos: ctx.toPos
           });
         }
         // 跟随动画时间线结束（带兜底超时，防止 timeline 异常导致输入永久锁死）
@@ -132,14 +170,23 @@ const FxBridge = (function () {
 
   /**
    * 移动播放
+   *
+   * 3D 模式下跳过 DOM ghost（2D 的卡片残影飘在 3D 棋盘上风格割裂），
+   * 改由 Renderer3D 在 render 差分时做原生抛物线跳跃，这里立即解锁。
    */
   function playForMove(ctx, eventInfo, settings) {
     return new Promise((resolve) => {
       try {
+        if (document.body.classList.contains('render-3d')) {
+          setTimeout(resolve, 60);
+          return;
+        }
         if (window.FxBase && typeof window.FxBase.playMoveFx === 'function') {
           window.FxBase.playMoveFx({
-            fromCellEl: ctx.fromCellEl,
-            toCellEl: ctx.toCellEl,
+            // 透传渲染器提供的视口坐标与资产描述，FX 层不再回读棋格 DOM
+            fromPos: ctx.fromPos,
+            toPos: ctx.toPos,
+            asset: ctx.asset,
             animal: eventInfo.animal,
             color: ctx.attacker.owner
           }).then(resolve);

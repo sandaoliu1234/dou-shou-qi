@@ -247,20 +247,25 @@ window.FxBase = FxBase;
 /* ============================================================
    通用吃子场景：5 阶段（参数化目标格）
    - 特效层始终挂到 <body>，使用 position: fixed 定位到目标格中心
-   - 不依赖棋盘 / 棋格布局，彻底避免被 renderBoard 销毁
+   - 不依赖棋盘 /棋格布局，彻底避免被 renderBoard 销毁
+
+   【渲染无关约定】targetPos 为"视口坐标矩形"，结构与
+   Element.getBoundingClientRect() 的返回值完全一致：
+     { x, y, width, height }  全部为 viewport CSS 像素
+   FX 层只认这4 个数字，不持有任何棋格 DOM 引用。
+   2D 渲染器由棋格元素实测getBoundingClientRect() 传入；
+   未来 3D 渲染器可直接由相机投影算出同一套视口坐标，
+   两边共用同一份 FX 逻辑，无需改动本文件。
    ============================================================ */
-function playCaptureSceneAt(targetCellEl, opts) {
+function playCaptureSceneAt(targetPos, opts) {
   const { gsap } = window;
   const { attackerAnimal, defenderAnimal, attackerColor = 'blue', defenderColor = 'red', scene, releaseFx, theme } = opts || {};
 
   // 取目标格屏幕中心（fallback 到屏幕中心）
-  let cx = window.innerWidth / 2;
-  let cy = window.innerHeight / 2;
-  if (targetCellEl && targetCellEl.getBoundingClientRect) {
-    const r = targetCellEl.getBoundingClientRect();
-    cx = r.left + r.width / 2;
-    cy = r.top + r.height / 2;
-  }
+  // 用视口坐标对象替代 DOM 元素：本函数不再触碰任何棋格节点，
+  // 特效锚点纯粹由外部传入的坐标决定，渲染器可以自由切换 2D/3D。
+  const cx = targetPos ? targetPos.x + targetPos.width / 2 : window.innerWidth / 2;
+  const cy = targetPos ? targetPos.y + targetPos.height / 2 : window.innerHeight / 2;
 
   // 1. 直接在 body 顶层创建 fixed 定位的特效层
   const old = document.querySelector('body > .fx-layer');
@@ -405,38 +410,44 @@ function playCaptureSceneAt(targetCellEl, opts) {
   return tl;
 }
 
-// 向后兼容别名（fx-demo.html 仍可能引用旧名）
+// 向后兼容别名：旧调用点（无坐标信息）退化为屏幕中心锚点
 function playCaptureScene(opts) {
-  return playCaptureSceneAt(document.getElementById('fxCell'), opts);
+  return playCaptureSceneAt(null, opts);
 }
 
 /* ============================================================
-   移动特效：从 fromCell 滑向 toCell + 灰尘
+   移动特效：从起点滑向终点 + 灰尘
    - 用于普通移动（非吃子）
    - 返回 Promise，动画结束后 resolve
+
+   【渲染无关约定】
+   - fromPos / toPos：视口坐标矩形 { x, y, width, height }（viewport CSS 像素），
+     语义与 getBoundingClientRect() 返回值一致，详见 playCaptureSceneAt 上方说明
+   - asset：可选资产描述 { url, level, name }。传入则优先用其 url，
+     用于让 2D / 3D 渲染器共用同一份资产解析结果；缺省时按 color/animal 兜底拼 URL
    ============================================================ */
 function playMoveFx(opts) {
   return new Promise((resolve) => {
-    const { fromCellEl, toCellEl, animal = 'dog', color = 'blue' } = opts || {};
-    if (!fromCellEl || !toCellEl) { resolve(); return; }
+    const { fromPos, toPos, animal = 'dog', color = 'blue', asset = null } = opts || {};
+    if (!fromPos || !toPos) { resolve(); return; }
 
     const { gsap } = window;
     if (!gsap) { resolve(); return; }
 
-    // 1. 克隆 fromCell 中的 img
-    const fromImg = fromCellEl.querySelector('.piece img');
-    if (!fromImg) { resolve(); return; }
-    const ghost = fromImg.cloneNode();
+    // 1. 自建ghost img（原先是克隆棋格内的 .piece img）
+    // 改为自建的原因：本函数只需要棋子图片，而 animal + color 已在参数里，
+    // 无需依赖棋盘 DOM 结构；自建也顺带避免了克隆带来的样式/层级副作用。
+    const ghost = document.createElement('img');
+    ghost.src = (asset && asset.url) ? asset.url : `assets/images/${color}/${animal}.svg`;
+    ghost.alt = (asset && asset.name) || animal;
 
-    // 2. 计算位移
-    const fromRect = fromCellEl.getBoundingClientRect();
-    const toRect = toCellEl.getBoundingClientRect();
-    const startX = fromRect.left + fromRect.width / 2;
-    const startY = fromRect.top + fromRect.height / 2;
-    const endX = toRect.left + toRect.width / 2;
-    const endY = toRect.top + toRect.height / 2;
+    // 2. 计算位移（全部基于视口坐标，不读DOM）
+    const startX = fromPos.x + fromPos.width / 2;
+    const startY = fromPos.y + fromPos.height / 2;
+    const endX = toPos.x + toPos.width / 2;
+    const endY = toPos.y + toPos.height / 2;
     // ghost 尺寸跟随落点格（原写死 60px，棋盘格子 ~90px 时明显偏小）
-    const gsize = Math.round(Math.min(toRect.width, toRect.height) * 0.8);
+    const gsize = Math.round(Math.min(toPos.width, toPos.height) * 0.8);
     const half = gsize / 2;
     // 3. ghost 位置：top/left 设到屏幕左上角，transform translate() 定位
     ghost.style.position = 'fixed';
@@ -473,8 +484,8 @@ function playMoveFx(opts) {
       dust.className = 'fx-move-dust';
       dust.style.background = theme.color;
       dust.style.position = 'fixed';
-      dust.style.left = `${endX + (Math.random() - 0.5) * toRect.width * 0.5}px`;
-      dust.style.top = `${endY + toRect.height * 0.28}px`;
+      dust.style.left = `${endX + (Math.random() - 0.5) * toPos.width * 0.5}px`;
+      dust.style.top = `${endY + toPos.height * 0.28}px`;
       dust.style.width = '6px';
       dust.style.height = '6px';
       dust.style.borderRadius = '50%';
